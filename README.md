@@ -78,8 +78,7 @@ See the [GitHub issue tracker](https://github.com/tomhrr/fsmu/issues).
 
 ### Acknowledgments
 
- * [notmuchfs](https://github.com/tsto/notmuchfs): most of the general
-   approach/interface here follows notmuchfs.
+ * Most of the general approach/interface here follows [notmuchfs](https://github.com/tsto/notmuchfs).
 
 ### Licence
 
