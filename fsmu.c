@@ -13,6 +13,7 @@
 #include <syslog.h>
 #include <limits.h>
 #include <stddef.h>
+#include <pwd.h>
 
 static struct options {
     const char *backing_dir;
@@ -627,6 +628,29 @@ static void usage(const char *progname)
            "\n");
 }
 
+int expand_tilde(const char *path, char *buf)
+{
+    const char *homedir = getenv("HOME");
+    if (!homedir) {
+        struct passwd *pw = getpwuid(getuid());
+        homedir = pw->pw_dir;
+    }
+
+    int path_len = strlen(path);
+    int homedir_len = strlen(homedir);
+    int j = 0;
+    for (int i = 0; i < path_len; i++) {
+        if (path[i] == '~') {
+            strncpy(buf + j, homedir, homedir_len);
+            j += homedir_len;
+        } else {
+            buf[j++] = path[i];
+        }
+    }
+
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     options.refresh_timeout = 30;
@@ -649,6 +673,18 @@ int main(int argc, char **argv)
         usage(argv[0]);
         return 1;
     }
+
+    char backing_dir_final[PATH_MAX];
+    expand_tilde(options.backing_dir, backing_dir_final);
+    options.backing_dir = backing_dir_final;
+
+    char mu_home_final[PATH_MAX];
+    expand_tilde(options.mu_home, mu_home_final);
+    options.mu_home = mu_home_final;
+
+    char mu_final[PATH_MAX];
+    expand_tilde(options.mu, mu_final);
+    options.mu = mu_final;
 
     fuse_main(args.argc, args.argv, &operations, NULL);
     fuse_opt_free_args(&args);
