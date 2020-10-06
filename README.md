@@ -37,7 +37,7 @@ Create and retrieve a query directory:
 ### Behaviour
 
 `mkdir` can be used at the top-level to create query directories.  Any
-`\` character in the directory name will be converted into a `/`
+`+` character in the directory name will be converted into a `/`
 before being used as a query, to work around `/` not being permitted
 in file/directory names.  `rmdir` can be used to remove a query
 directory, regardless of whether it has been populated.
@@ -62,9 +62,24 @@ the search directory and the underlying maildir, pass the
 Multithreaded operation is not currently supported, so the `-s` flag
 must be passed when mounting the filesystem.
 
+If a directory name at the top-level is not a valid query, then
+attempting to access that directory will lead to an "operation not
+permitted" error message.
+
+The path to the `mu` executable can be set by using the `--mu` option,
+and the `muhome` configuration option (passed to the `mu` commands)
+can be set by using the `--muhome` option.
+
+Debug and error information is logged using syslog.
+
 ### Bugs/problems/suggestions
 
 See the [GitHub issue tracker](https://github.com/tomhrr/fsmu/issues).
+
+### Acknowledgments
+
+ * [notmuchfs](https://github.com/tsto/notmuchfs): most of the general
+   approach/interface here follows notmuchfs.
 
 ### Licence
 

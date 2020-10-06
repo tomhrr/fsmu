@@ -201,7 +201,7 @@ static int refresh_dir(const char *path, int force)
 
     int len = strlen(query);
     for (int i = 0; i < len; i++) {
-        if (query[i] == '\\') {
+        if (query[i] == '+') {
             query[i] = '/';
         }
     }
@@ -210,11 +210,13 @@ static int refresh_dir(const char *path, int force)
     len = strlen(backing_path);
     int j = 0;
     for (int i = 0; i < len; i++) {
-        if (backing_path[i] == ' ') {
+        if ((backing_path[i] == ' ')
+                || backing_path[i] == '\\') {
             backing_path_escaped[j++] = '\\';
         }
         backing_path_escaped[j++] = backing_path[i];
     }
+    backing_path_escaped[j] = 0;
 
     sprintf(cmd, "%s find %s%s --clearlinks --format=links --linksdir='%s' %s",
             options.mu,
@@ -647,6 +649,7 @@ int expand_tilde(const char *path, char *buf)
             buf[j++] = path[i];
         }
     }
+    buf[j] = 0;
 
     return 0;
 }

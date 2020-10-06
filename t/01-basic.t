@@ -15,7 +15,7 @@ use File::Find;
 use File::Slurp qw(read_file);
 use File::Temp qw(tempdir);
 
-use Test::More tests => 21;
+use Test::More tests => 22;
 
 my $mount_dir;
 my $pid;
@@ -145,6 +145,15 @@ my $pid;
     ok($res, 'Able to call rmdir on query directory');
     ok((-e $backing_dir.'/_to:asdf4@example.net'),
         'Backing directory left in place');
+
+    # Confirm maildir queries work correctly.
+
+    my $query_dir3 = $mount_dir.'/maildir:+asdf+asdf4';
+    mkdir $query_dir3;
+    @query_files = ();
+    find(sub { push @query_files, $File::Find::name },
+         $query_dir3.'/cur');
+    is(@query_files, 4, "Found 4 'cur' files");
 }
 
 END {
