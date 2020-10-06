@@ -1,2 +1,71 @@
-# fsmu
-A virtual maildir filesystem for mu queries
+## fsmu
+
+A virtual maildir filesystem for [https://github.com/djcb/mu](`mu`)
+queries.  Create directories with names that are `mu` queries, and
+those directories will be populated with the query results on
+retrieval.  Movement of mail within the search directory (e.g. from
+`new` to `cur`) propagates to the underlying maildir, too.
+
+### Dependencies
+
+  * [https://github.com/libfuse/libfuse](FUSE)
+
+### Install
+
+    make
+    sudo make install
+
+### Usage
+
+Create a backing directory:
+
+    $ mkdir ~/fsmu-bd
+
+Mount the filesystem:
+
+    $ fsmu --backing-dir ~/fsmu-bd -s fsmu
+
+Create and retrieve a query directory:
+
+    $ cd fsmu
+    $ mkdir from:user@example.net
+    $ ls from:user@example.net
+    cur new tmp
+    $ mutt -f from:user@example.net
+    ...
+
+### Behaviour
+
+`mkdir` can be used at the top-level to create query directories.  Any
+`\` character in the directory name will be converted into a `/`
+before being used as a query, to work around `/` not being permitted
+in file/directory names.  `rmdir` can be used to remove a query
+directory, regardless of whether it has been populated.
+
+Movement of mail within a search directory is supported, and
+propagates to the underlying maildir.  This means that changes to a
+message's flags, as well as movement from `new` to `cur` and
+vice-versa, takes effect on the message in its original maildir.
+
+Whenever `cur` or `new` within the query directory is accessed, the
+query results are refreshed if that hasn't happened within the last 30
+seconds.  This value can be changed by way of the `--refresh-timeout`
+option.
+
+By default, indexing is not performed before querying.  This can be
+enabled by way of the `--enable-indexing` option.
+
+By default, deletion is a no-op.  To have deletion take effect in both
+the search directory and the underlying maildir, pass the
+`--delete-remove` option.
+
+Multithreaded operation is not currently supported, so the `-s` flag
+must be passed when mounting the filesystem.
+
+### Bugs/problems/suggestions
+
+See the [GitHub issue tracker](https://github.com/tomhrr/fsmu/issues).
+
+### Licence
+
+See LICENCE.

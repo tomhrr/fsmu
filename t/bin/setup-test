@@ -1,0 +1,40 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+
+use lib './t/lib';
+use FsmuUtils qw(make_root_maildir
+                 make_message
+                 write_message
+                 mu_init
+                 mu_cmd);
+use File::Temp qw(tempdir);
+
+my $dir = make_root_maildir();
+my $muhome = mu_init($dir);
+my $backing_dir = tempdir(UNLINK => 1);
+my $mount_dir = tempdir(UNLINK => 1);
+
+print "Root maildir: $dir\n";
+print "Mu home:      $muhome\n";
+print "Backing dir:  $backing_dir\n";
+print "Mount dir:    $mount_dir\n";
+
+my $pid;
+if ($pid = fork()) {
+    sleep(1);
+} else {
+    my $res = system("./fsmu -f -d --muhome=$muhome ".
+                     "--backing-dir=$backing_dir $mount_dir");
+    sleep(3600);
+    exit();
+}
+
+$SIG{'TERM'} = sub {
+    system("fusermount -u $mount_dir");
+};
+
+sleep(3600);
+
+1;
