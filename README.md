@@ -1,6 +1,6 @@
 ## fsmu
 
-A virtual maildir filesystem for [https://github.com/djcb/mu](`mu`)
+A virtual maildir filesystem for [`mu`](https://github.com/djcb/mu)
 queries.  Create directories with names that are `mu` queries, and
 those directories will be populated with the query results on
 retrieval.  Movement of mail within the search directory (e.g. from
@@ -8,7 +8,7 @@ retrieval.  Movement of mail within the search directory (e.g. from
 
 ### Dependencies
 
-  * [https://github.com/libfuse/libfuse](FUSE)
+  * [FUSE](https://github.com/libfuse/libfuse)
 
 ### Install
 
