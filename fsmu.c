@@ -198,7 +198,7 @@ static int refresh_dir(const char *path, int force)
     char backing_path[PATH_MAX];
     sprintf(backing_path, "%s/_%s", options.backing_dir, query);
 
-    let len = strlen(query);
+    int len = strlen(query);
     for (int i = 0; i < len; i++) {
         if (query[i] == '\\') {
             query[i] = '/';

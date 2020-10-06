@@ -14,4 +14,5 @@ test: fsmu
 	prove t/*.t
 
 install: fsmu
-	install -d $(DESTDIR)$(PREFIX)/lib/
+	install -d $(DESTDIR)$(PREFIX)/bin/
+	install -m 755 fsmu $(DESTDIR)$(PREFIX)/bin/
