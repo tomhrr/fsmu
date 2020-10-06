@@ -12,14 +12,18 @@ use FsmuUtils qw(make_root_maildir
 use autodie;
 use File::Basename;
 use File::Find;
+use File::Slurp qw(read_file);
 use File::Temp qw(tempdir);
 
-use Test::More tests => 18;
+use Test::More tests => 21;
 
 my $mount_dir;
 my $pid;
 
 {
+    my @help = `./fsmu --help`;
+    like($help[0], qr/^usage/, 'Got help details');
+
     my $dir = make_root_maildir();
     my $muhome = mu_init($dir);
     my $backing_dir = tempdir(UNLINK => 1);
@@ -47,6 +51,20 @@ my $pid;
     is(@new_files, 60, "Found 60 'new' files");
     my @cur_files = grep { /\/cur\/\d/ } @query_files;
     is(@cur_files, 60, "Found 60 'cur' files");
+
+    # Confirm that mail items can be read.
+
+    my $data = read_file($cur_files[0]);
+    ok($data, 'Able to read mail file from mount directory');
+
+    # Confirm that raw backing directories are not included in the
+    # mount directory.
+
+    my @files;
+    find(sub { push @files, $File::Find::name },
+         $mount_dir);
+    ok((not grep { /\/_/ } @files),
+        'No raw backing directories in mount directory');
 
     # Add another mail item, confirm that requerying picks it up.
 

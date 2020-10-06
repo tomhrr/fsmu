@@ -636,11 +636,6 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (!options.backing_dir) {
-        printf("backing_dir must be set.\n");
-        usage(argv[0]);
-        return 1;
-    }
     if (options.help) {
         usage(argv[0]);
         int res = fuse_opt_add_arg(&args, "--help");
@@ -648,6 +643,11 @@ int main(int argc, char **argv)
             return 1;
         }
         args.argv[0][0] = '\0';
+    }
+    if (!options.backing_dir) {
+        printf("backing_dir must be set.\n");
+        usage(argv[0]);
+        return 1;
     }
 
     fuse_main(args.argc, args.argv, &operations, NULL);
