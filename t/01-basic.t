@@ -16,13 +16,15 @@ use File::Temp qw(tempdir);
 
 use Test::More tests => 18;
 
+my $mount_dir;
+my $pid;
+
 {
     my $dir = make_root_maildir();
     my $muhome = mu_init($dir);
     my $backing_dir = tempdir(UNLINK => 1);
-    my $mount_dir = tempdir(UNLINK => 1);
+    $mount_dir = tempdir(UNLINK => 1);
     my $refresh_cmd = "mu index --muhome=$muhome >/dev/null";
-    my $pid;
     if ($pid = fork()) {
         sleep(1);
     } else {
@@ -35,15 +37,16 @@ use Test::More tests => 18;
 
     # Confirm basic query returns results.
     
-    my $query_dir = $mount_dir.'/from:user@example.org';
+    my $query_dir = $mount_dir.'/from:user@example.org '.
+                    'and not to:asdf4@example.net';
     mkdir $query_dir;
     my @query_files;
     find(sub { push @query_files, $File::Find::name },
          $query_dir);
     my @new_files = grep { /\/new\/\d/ } @query_files;
-    is(@new_files, 75, "Found 75 'new' files");
+    is(@new_files, 60, "Found 60 'new' files");
     my @cur_files = grep { /\/cur\/\d/ } @query_files;
-    is(@cur_files, 75, "Found 75 'cur' files");
+    is(@cur_files, 60, "Found 60 'cur' files");
 
     # Add another mail item, confirm that requerying picks it up.
 
@@ -57,7 +60,7 @@ use Test::More tests => 18;
     find(sub { push @query_files, $File::Find::name },
          $query_dir);
     @cur_files = grep { /\/cur\/\d/ } @query_files;
-    is(@cur_files, 76, "Found 76 'cur' files");
+    is(@cur_files, 61, "Found 61 'cur' files");
 
     # Rename mail item within original directory.
 
@@ -124,8 +127,17 @@ use Test::More tests => 18;
     ok($res, 'Able to call rmdir on query directory');
     ok((-e $backing_dir.'/_to:asdf4@example.net'),
         'Backing directory left in place');
+}
 
-    system("fusermount -u $mount_dir");
+END {
+    if ($mount_dir) {
+        system("fusermount -u $mount_dir");
+    }
+    if ($pid) {
+        kill('TERM', $pid);
+        waitpid($pid, 0);
+    }
+    exit(0);
 }
 
 1;

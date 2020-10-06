@@ -205,12 +205,22 @@ static int refresh_dir(const char *path, int force)
         }
     }
 
-    sprintf(cmd, "%s find %s%s --clearlinks --format=links --linksdir=%s %s",
+    char backing_path_escaped[PATH_MAX];
+    len = strlen(backing_path);
+    int j = 0;
+    for (int i = 0; i < len; i++) {
+        if (backing_path[i] == ' ') {
+            backing_path_escaped[j++] = '\\';
+        }
+        backing_path_escaped[j++] = backing_path[i];
+    }
+
+    sprintf(cmd, "%s find %s%s --clearlinks --format=links --linksdir='%s' %s",
             options.mu,
             (options.mu_home ? "--muhome=" : ""),
             (options.mu_home ? options.mu_home : ""),
-            backing_path, query);
-    syslog(LOG_INFO, "refresh_dir: running mu find\n");
+            backing_path_escaped, query);
+    syslog(LOG_INFO, "refresh_dir: running mu find: '%s'\n", cmd);
     res = system(cmd);
     if (res != 0) {
         syslog(LOG_ERR, "refresh_dir: mu find failed\n");

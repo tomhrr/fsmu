@@ -19,11 +19,11 @@ retrieval.  Movement of mail within the search directory (e.g. from
 
 Create a backing directory:
 
-    $ mkdir ~/fsmu-bd
+    $ mkdir fsmu-bd
 
 Mount the filesystem:
 
-    $ fsmu --backing-dir ~/fsmu-bd -s fsmu
+    $ fsmu --backing-dir=fsmu-bd -s fsmu
 
 Create and retrieve a query directory:
 
