@@ -257,6 +257,13 @@ static int fsmu_readdir(const char *path, void *buf,
             }
             filler(buf, dent->d_name, 0, 0);
         }
+        int res = closedir(backing_dir_handle);
+        if (res != 0) {
+            syslog(LOG_ERR, "readdir: cannot close '%s': %s\n",
+                   options.backing_dir, strerror(errno));
+            return -1;
+        }
+
         syslog(LOG_DEBUG, "readdir: '%s' completed\n", path);
         return 0;
     }
@@ -281,7 +288,13 @@ static int fsmu_readdir(const char *path, void *buf,
     while ((dent = readdir(dir_handle)) != NULL) {
         filler(buf, dent->d_name, 0, 0);
     }
- 
+    res = closedir(dir_handle);
+    if (res != 0) {
+        syslog(LOG_ERR, "readdir: cannot close '%s': %s\n",
+               backing_path, strerror(errno));
+        return -1;
+    }
+
     syslog(LOG_DEBUG, "readdir: '%s' completed\n", path);
     return 0;
 }
