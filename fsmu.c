@@ -211,14 +211,17 @@ static int refresh_dir(const char *path, int force)
     int j = 0;
     for (int i = 0; i < len; i++) {
         if ((backing_path[i] == ' ')
-                || backing_path[i] == '\\') {
+                || (backing_path[i] == '\\')
+                || (backing_path[i] == ')')
+                || (backing_path[i] == '(')) {
             backing_path_escaped[j++] = '\\';
         }
         backing_path_escaped[j++] = backing_path[i];
     }
     backing_path_escaped[j] = 0;
 
-    sprintf(cmd, "%s find %s%s --clearlinks --format=links --linksdir='%s' %s",
+    sprintf(cmd, "%s find %s%s --clearlinks --format=links "
+                 "--linksdir='%s' '%s'",
             options.mu,
             (options.mu_home ? "--muhome=" : ""),
             (options.mu_home ? options.mu_home : ""),
@@ -681,13 +684,15 @@ int main(int argc, char **argv)
     expand_tilde(options.backing_dir, backing_dir_final);
     options.backing_dir = backing_dir_final;
 
-    char mu_home_final[PATH_MAX];
-    expand_tilde(options.mu_home, mu_home_final);
-    options.mu_home = mu_home_final;
-
     char mu_final[PATH_MAX];
     expand_tilde(options.mu, mu_final);
     options.mu = mu_final;
+
+    if (options.mu_home) {
+        char mu_home_final[PATH_MAX];
+        expand_tilde(options.mu_home, mu_home_final);
+        options.mu_home = mu_home_final;
+    }
 
     fuse_main(args.argc, args.argv, &operations, NULL);
     fuse_opt_free_args(&args);
