@@ -619,6 +619,64 @@ static int fsmu_getattr(const char *path, struct stat *stbuf)
     return res;
 }
 
+static int update_link_mapping(const char *maildir_path,
+                               const char *new_maildir_path,
+                               const char *dirname_new,
+                               const char *basename_new)
+{
+    struct link_mapping_st *lmst = NULL;
+    HASH_FIND_STR(link_mappings, maildir_path, lmst);
+    if (!lmst) {
+        syslog(LOG_ERR, "update_link_mapping: maildir_path "
+                        "not in mappings: %s",
+               maildir_path);
+        abort();
+    }
+
+    struct backing_path_st *bpst = lmst->backing_path_st;
+    struct backing_path_st *bpst_sub, *tmp = NULL;
+    HASH_ITER(hh, bpst, bpst_sub, tmp) {
+        HASH_DEL(bpst, bpst_sub);
+        const char *backing_path = bpst_sub->backing_path;
+        char backing_path_dir[PATH_MAX];
+        int res = dirname(backing_path, backing_path_dir);
+        if (res != 0) {
+            abort();
+        }
+        char backing_path_dir2[PATH_MAX];
+        res = dirname(backing_path_dir, backing_path_dir2);
+        if (res != 0) {
+            abort();
+        }
+        strcat(backing_path_dir2, "/");
+        strcat(backing_path_dir2, dirname_new);
+        strcat(backing_path_dir2, "/");
+        strcat(backing_path_dir2, basename_new);
+
+        res = unlink(backing_path);
+        if (res != 0) {
+            syslog(LOG_ERR, "update_link_mapping: unable to unlink "
+                            "%s: %s",
+                   backing_path, strerror(errno));
+            return -1;
+        }
+        res = symlink(new_maildir_path, backing_path_dir2);
+        if (res != 0) {
+            syslog(LOG_ERR, "update_link_mapping: unable to symlink "
+                            "%s to %s: %s",
+                   backing_path_dir2, new_maildir_path, strerror(errno));
+            return -1;
+        }
+        add_link_mapping(new_maildir_path, backing_path_dir2);
+        free(bpst_sub);
+    }
+
+    HASH_DEL(link_mappings, lmst);
+    free(lmst);
+
+    return 0;
+}
+
 static int fsmu_rename(const char *from, const char *to)
 {
     syslog(LOG_DEBUG, "rename: '%s' to '%s'\n", from, to);
@@ -731,24 +789,8 @@ static int fsmu_rename(const char *from, const char *to)
         return -1;
     }
 
-    char to_backing_path[PATH_MAX];
-    res = resolve_path_noexists(to, to_backing_path);
-    if (res != 0) {
-        syslog(LOG_ERR, "rename: cannot resolve path '%s'\n", to);
-        return -1;
-    }
-    res = symlink(to_maildir_path, to_backing_path);
-    if (res != 0) {
-        syslog(LOG_ERR, "rename: cannot make symlink for '%s': %s\n",
-               to_backing_path, strerror(errno));
-        return -1;
-    }
-    res = unlink(from_backing_path);
-    if (res != 0) {
-        syslog(LOG_ERR, "rename: cannot remove old symlink '%s': %s\n",
-               from_backing_path, strerror(errno));
-        return -1;
-    }
+    update_link_mapping(from_maildir_path, to_maildir_path,
+                        to_dir_next_single, to_basename);
 
     syslog(LOG_DEBUG, "rename: '%s' to '%s' completed\n", from, to);
     return 0;

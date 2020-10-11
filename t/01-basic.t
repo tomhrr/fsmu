@@ -16,7 +16,7 @@ use File::Slurp qw(read_file);
 use File::Temp qw(tempdir);
 use List::Util qw(first);
 
-use Test::More tests => 22;
+use Test::More tests => 27;
 
 my $mount_dir;
 my $pid;
@@ -93,6 +93,7 @@ my $pid;
         "Original file in maildir no longer exists");
     ok((-e $new_cur_file),
         "New file in maildir exists");
+
     my $basename = basename($cur_file);
     my $new_basename = basename($new_cur_file);
     ok((not -e $query_dir.'/cur/'.$basename),
@@ -155,6 +156,64 @@ my $pid;
     find(sub { push @query_files, $File::Find::name },
          $query_dir3.'/cur');
     is(@query_files, 4, "Found 4 'cur' files");
+
+    # Set up two query directories that overlap.  Confirm that
+    # movement in one causes updates in the other.
+
+    my $query_dir4 = $mount_dir.'/from:user@example.org';
+    mkdir $query_dir4;
+    my $query_dir5 = $mount_dir.'/data';
+    mkdir $query_dir5;
+
+    my @query_files4 = ();
+    find(sub { push @query_files4, $File::Find::name },
+         $query_dir4);
+    my @query_files4_nodir =
+        sort
+        map { my $b = $_; $b =~ s/$query_dir4//; $b }
+            @query_files4;
+    my @query_files5 = ();
+    find(sub { push @query_files5, $File::Find::name },
+         $query_dir5);
+    my @query_files5_nodir =
+        sort
+        map { my $b = $_; $b =~ s/$query_dir5//; $b }
+            @query_files5;
+
+    is_deeply(\@query_files4_nodir, \@query_files5_nodir,
+        'Query directories cover the same files');
+
+    $new_file = first { /\/new\// } @query_files4;
+    $new_new_file = $new_file;
+    $new_new_file =~ s/\/new\//\/cur\//;
+    $! = undef;
+    eval { rename $new_file, $new_new_file };
+    $info = $!;
+    ok((not $@), "Renamed file into different directory");
+    diag $@ if $@;
+    diag $info if $info;
+    ok((not -e $new_file),
+        "Original file in maildir no longer exists");
+    ok((-e $new_new_file),
+        "New file in maildir exists");
+
+    @query_files4 = ();
+    find(sub { push @query_files4, $File::Find::name },
+         $query_dir4);
+    @query_files4_nodir =
+        sort
+        map { my $b = $_; $b =~ s/$query_dir4//; $b }
+            @query_files4;
+    @query_files5 = ();
+    find(sub { push @query_files5, $File::Find::name },
+         $query_dir5);
+    @query_files5_nodir =
+        sort
+        map { my $b = $_; $b =~ s/$query_dir5//; $b }
+            @query_files5;
+
+    is_deeply(\@query_files4_nodir, \@query_files5_nodir,
+        'Query directories still cover the same files');
 }
 
 END {
