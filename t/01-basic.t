@@ -14,6 +14,7 @@ use File::Basename;
 use File::Find;
 use File::Slurp qw(read_file);
 use File::Temp qw(tempdir);
+use List::Util qw(first);
 
 use Test::More tests => 22;
 
@@ -69,7 +70,7 @@ my $pid;
     # Add another mail item, confirm that requerying picks it up.
 
     my $entity = make_message('user@example.org', 'asdf',
-                              'asdf', 'asdf');
+                              'asdf', 'asdf data');
     write_message($entity, $dir.'/asdf/asdf1/cur');
     system($refresh_cmd);
     @query_files = ();
