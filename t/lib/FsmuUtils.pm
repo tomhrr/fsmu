@@ -46,7 +46,10 @@ my @subdirs = qw(cur new tmp);
 
 sub make_maildir
 {
-    my ($dir, $name) = @_;
+    my ($dir, $name, $dirs, $messages) = @_;
+
+    $dirs ||= 5;
+    $messages ||= 9;
 
     my $wdir = `pwd`;
     chomp $wdir;
@@ -54,19 +57,19 @@ sub make_maildir
     mkdir $name;
     chdir $name;
 
-    for my $n (1..5) {
+    for my $n (1..$dirs) {
         my $dir = "asdf".$n;
         mkdir $dir;
         chdir $dir;
         for my $subdir (@subdirs) {
             mkdir $subdir;
         }
-        for my $m (1..9) {
+        for my $m (1..$messages) {
             my $entity = make_message('user@example.org',
                                       $dir.'@example.net',
                                       "$dir message $m",
                                       "data");
-            my $sdir = $subdirs[$m % 3];
+            my $sdir = $subdirs[$m % 2];
             write_message($entity, $sdir);
         }
         chdir "..";
@@ -77,9 +80,11 @@ sub make_maildir
 
 sub make_root_maildir
 {
+    my ($dirs, $messages) = @_;
+
     my $dir = tempdir(UNLINK => 1);
     for my $name (qw(asdf qwer zxcv tyui ghjk)) {
-        make_maildir($dir, $name);
+        make_maildir($dir, $name, $dirs, $messages);
     }
     return $dir;
 }
