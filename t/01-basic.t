@@ -49,9 +49,9 @@ my $pid;
     find(sub { push @query_files, $File::Find::name },
          $query_dir);
     my @new_files = grep { /\/new\/\d/ } @query_files;
-    is(@new_files, 60, "Found 60 'new' files");
+    is(@new_files, 100, "Found 100 'new' files");
     my @cur_files = grep { /\/cur\/\d/ } @query_files;
-    is(@cur_files, 60, "Found 60 'cur' files");
+    is(@cur_files, 80, "Found 80 'cur' files");
 
     # Confirm that mail items can be read.
 
@@ -79,7 +79,7 @@ my $pid;
     find(sub { push @query_files, $File::Find::name },
          $query_dir);
     @cur_files = grep { /\/cur\/\d/ } @query_files;
-    is(@cur_files, 61, "Found 61 'cur' files");
+    is(@cur_files, 81, "Found 81 'cur' files");
 
     # Rename mail item within original directory.
 
@@ -128,7 +128,7 @@ my $pid;
     @query_files = ();
     find(sub { push @query_files, $File::Find::name },
          $query_dir2.'/cur');
-    is(@query_files, 16, "Found 16 'cur' files");
+    is(@query_files, 21, "Found 21 'cur' files");
 
     # Deletion carries through to the mailbox.
 
@@ -155,7 +155,7 @@ my $pid;
     @query_files = ();
     find(sub { push @query_files, $File::Find::name },
          $query_dir3.'/cur');
-    is(@query_files, 4, "Found 4 'cur' files");
+    is(@query_files, 5, "Found 5 'cur' files");
 
     # Set up two query directories that overlap.  Confirm that
     # movement in one causes updates in the other.
