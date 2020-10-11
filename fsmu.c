@@ -17,12 +17,12 @@
 #include "./uthash/uthash.h"
 
 struct backing_path_st {
-    char backing_path[PATH_MAX];
+    const char *backing_path;
     int empty;
     UT_hash_handle hh;
 };
 struct link_mapping_st {
-    char maildir_path[PATH_MAX];
+    const char *maildir_path;
     struct backing_path_st *backing_path_st;
     UT_hash_handle hh;
 };
@@ -190,12 +190,22 @@ static int add_link_mapping(const char *maildir_path,
             syslog(LOG_ERR, "malloc failed: %s\n", strerror(errno));
             abort();
         }
+        bpst->backing_path = malloc(strlen(backing_path) + 1);
+        if (!bpst->backing_path) {
+            syslog(LOG_ERR, "malloc failed: %s\n", strerror(errno));
+            abort();
+        }
         strcpy(bpst->backing_path, backing_path);
         bpst->empty = 1;
         HASH_ADD_STR(all, backing_path, bpst);
 
         lmst = malloc(sizeof(struct link_mapping_st));
         if (!lmst) {
+            syslog(LOG_ERR, "malloc failed: %s\n", strerror(errno));
+            abort();
+        }
+        lmst->maildir_path = malloc(strlen(maildir_path) + 1);
+        if (!lmst->maildir_path) {
             syslog(LOG_ERR, "malloc failed: %s\n", strerror(errno));
             abort();
         }
@@ -215,6 +225,11 @@ static int add_link_mapping(const char *maildir_path,
 
         struct backing_path_st *new = malloc(sizeof(struct backing_path_st));
         if (!new) {
+            syslog(LOG_ERR, "malloc failed: %s\n", strerror(errno));
+            abort();
+        }
+        new->backing_path = malloc(strlen(backing_path) + 1);
+        if (!new->backing_path) {
             syslog(LOG_ERR, "malloc failed: %s\n", strerror(errno));
             abort();
         }
@@ -249,6 +264,7 @@ static int remove_link_mapping(const char *maildir_path,
     }
 
     HASH_DEL(bpst, bpst_sub);
+    free(bpst_sub->backing_path);
     free(bpst_sub);
 
     return 0;
@@ -668,10 +684,12 @@ static int update_link_mapping(const char *maildir_path,
             return -1;
         }
         add_link_mapping(new_maildir_path, backing_path_dir2);
+        free(bpst_sub->backing_path);
         free(bpst_sub);
     }
 
     HASH_DEL(link_mappings, lmst);
+    free(lmst->maildir_path);
     free(lmst);
 
     return 0;
