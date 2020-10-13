@@ -16,17 +16,33 @@
 #include <pwd.h>
 #include "./uthash/uthash.h"
 
+struct path_st {
+    int dir_path_value;
+    char backing_path[];
+};
+
 struct backing_path_st {
-    const char *backing_path;
     int empty;
     UT_hash_handle hh;
+    struct path_st path;
 };
+
 struct link_mapping_st {
-    const char *maildir_path;
+    char *maildir_path;
     struct backing_path_st *backing_path_st;
     UT_hash_handle hh;
 };
+
 struct link_mapping_st *link_mappings = NULL;
+
+static int max_value = 0;
+struct dir_path_st {
+    char *dir_path;
+    int value;
+    UT_hash_handle hh;
+};
+struct dir_path_st *dir_paths = NULL;
+struct dir_path_st *dir_paths_reverse = NULL;
 
 static struct options {
     const char *backing_dir;
@@ -178,26 +194,70 @@ static int make_backing_path_if_required(const char *backing_path)
     return 0;
 }
 
+static int get_dir_int(const char *path)
+{
+    char dir[PATH_MAX];
+    int res = dirname(path, dir);
+    if (res != 0) {
+        syslog(LOG_ERR, "get_dir_int: failed: %s", path);
+        return -1;
+    }
+
+    struct dir_path_st *dpst1, *dpst2 = NULL;
+    HASH_FIND_STR(dir_paths, dir, dpst1);
+    if (dpst1) {
+        return dpst1->value;
+    }
+
+    dpst1 = malloc(sizeof(*dpst1));
+    if (!dpst1) {
+        syslog(LOG_ERR, "get_dir_int: malloc failed: %s",
+               strerror(errno));
+        return -1;
+    }
+
+    dpst1->dir_path = malloc(strlen(dir) + 1);
+    if (!dpst1->dir_path) {
+        syslog(LOG_ERR, "get_dir_int: malloc failed: %s",
+               strerror(errno));
+        return -1;
+    }
+    strcpy(dpst1->dir_path, dir);
+    /* todo: need to handle rollover somehow. */
+    dpst1->value = ++max_value;
+    HASH_ADD_KEYPTR(hh, dir_paths, dpst1->dir_path,
+                    strlen(dpst1->dir_path), dpst1);
+
+    dpst2 = malloc(sizeof(*dpst2));
+    dpst2->dir_path = malloc(strlen(dir) + 1);
+    strcpy(dpst2->dir_path, dir);
+    dpst2->value = max_value;
+    HASH_ADD_INT(dir_paths_reverse, value, dpst2);
+
+    return dpst1->value;
+}
+
 static int add_link_mapping(const char *maildir_path,
                             const char *backing_path)
 {
     struct link_mapping_st *lmst = NULL;
     HASH_FIND_STR(link_mappings, maildir_path, lmst);
     if (!lmst) {
+        const char *backing_path_basename =
+            strrchr(backing_path, '/') + 1;
+
         struct backing_path_st *all = NULL;
-        struct backing_path_st *bpst = malloc(sizeof(struct backing_path_st));
+        int size = sizeof(struct backing_path_st) +
+                   strlen(backing_path_basename) + 1;
+        struct backing_path_st *bpst = malloc(size);
         if (!bpst) {
             syslog(LOG_ERR, "malloc failed: %s\n", strerror(errno));
             abort();
         }
-        bpst->backing_path = malloc(strlen(backing_path) + 1);
-        if (!bpst->backing_path) {
-            syslog(LOG_ERR, "malloc failed: %s\n", strerror(errno));
-            abort();
-        }
-        strcpy(bpst->backing_path, backing_path);
+        bpst->path.dir_path_value = get_dir_int(backing_path);
+        strcpy(bpst->path.backing_path, backing_path_basename);
         bpst->empty = 1;
-        HASH_ADD_STR(all, backing_path, bpst);
+        HASH_ADD(hh, all, path, size, bpst);
 
         lmst = malloc(sizeof(struct link_mapping_st));
         if (!lmst) {
@@ -213,37 +273,47 @@ static int add_link_mapping(const char *maildir_path,
         lmst->backing_path_st = all;
         HASH_ADD_STR(link_mappings, maildir_path, lmst);
     } else {
-        struct backing_path_st *bpst = lmst->backing_path_st;
-        struct backing_path_st *bpst_sub = NULL;
-        HASH_FIND_STR(bpst, backing_path, bpst_sub);
-        if (bpst_sub) {
+        const char *backing_path_basename =
+            strrchr(backing_path, '/') + 1;
+
+        struct backing_path_st *bpst_fnd = NULL;
+        struct backing_path_st *bpst_all = lmst->backing_path_st;
+        int size = sizeof(struct backing_path_st) +
+                   strlen(backing_path_basename) + 1;
+        struct backing_path_st *bpst = malloc(size);
+        if (!bpst) {
+            syslog(LOG_ERR, "malloc failed: %s\n", strerror(errno));
+            abort();
+        }
+        bpst->path.dir_path_value = get_dir_int(backing_path);
+        strcpy(bpst->path.backing_path, backing_path_basename);
+        bpst->empty = 1;
+        HASH_FIND(hh, bpst_all, &bpst->path, size, bpst_fnd);
+        if (bpst_fnd) {
             syslog(LOG_DEBUG, "add_link_mapping: %s already present "
                               "as mapping from %s",
                    backing_path, maildir_path);
             abort();
         }
 
-        struct backing_path_st *new = malloc(sizeof(struct backing_path_st));
-        if (!new) {
-            syslog(LOG_ERR, "malloc failed: %s\n", strerror(errno));
-            abort();
-        }
-        new->backing_path = malloc(strlen(backing_path) + 1);
-        if (!new->backing_path) {
-            syslog(LOG_ERR, "malloc failed: %s\n", strerror(errno));
-            abort();
-        }
-        strcpy(new->backing_path, backing_path);
-        new->empty = 1;
-        HASH_ADD_STR(bpst, backing_path, new);
+        HASH_ADD(hh, bpst_all, path, size, bpst);
     }
 
     return 0;
 }
 
+static struct backing_path_st *bpst;
 static int remove_link_mapping(const char *maildir_path,
                                const char *backing_path)
 {
+    if (!bpst) {
+        bpst = malloc(4096);
+        if (!bpst) {
+            syslog(LOG_ERR, "malloc failed: %s\n", strerror(errno));
+            abort();
+        }
+    }
+
     struct link_mapping_st *lmst = NULL;
     HASH_FIND_STR(link_mappings, maildir_path, lmst);
     if (!lmst) {
@@ -253,19 +323,28 @@ static int remove_link_mapping(const char *maildir_path,
         abort();
     }
 
-    struct backing_path_st *bpst = lmst->backing_path_st;
-    struct backing_path_st *bpst_sub = NULL;
-    HASH_FIND_STR(bpst, backing_path, bpst_sub);
-    if (!bpst_sub) {
+    const char *backing_path_basename =
+        strrchr(backing_path, '/') + 1;
+
+    struct backing_path_st *bpst_fnd = NULL;
+    struct backing_path_st *bpst_all = lmst->backing_path_st;
+    int size = sizeof(struct backing_path_st) +
+                strlen(backing_path_basename) + 1;
+    memset(bpst, 0, 4096);
+    bpst->path.dir_path_value = get_dir_int(backing_path);
+    strcpy(bpst->path.backing_path, backing_path_basename);
+    bpst->empty = 1;
+    HASH_FIND(hh, bpst_all, &bpst->path, size, bpst_fnd);
+    if (!bpst_fnd) {
         syslog(LOG_DEBUG, "remove_link_mapping: %s not present "
                           "as mapping from %s",
                backing_path, maildir_path);
         abort();
     }
 
-    HASH_DEL(bpst, bpst_sub);
-    free(bpst_sub->backing_path);
-    free(bpst_sub);
+    HASH_DEL(bpst_all, bpst_fnd);
+    free(bpst_fnd);
+    free(bpst);
 
     return 0;
 }
@@ -297,7 +376,7 @@ static int update_backing_path(const char *backing_path,
         if (res == 0) {
             res = unlink(temp_path_ent);
             if (res != 0) {
-                syslog(LOG_ERR, "refresh_dir: 1unable to remove link "
+                syslog(LOG_ERR, "refresh_dir: unable to remove link "
                                 "that already exists (%s): %s\n",
                        dent->d_name, strerror(errno));
                 return -1;
@@ -320,16 +399,14 @@ static int update_backing_path(const char *backing_path,
                 return -1 * errno;
             }
             maildir_path[len] = 0;
-
             res = remove_link_mapping(maildir_path, backing_path);
             if (res != 0) {
                 syslog(LOG_ERR, "refresh_dir: unable to remove link mapping");
                 return -1;
             }
-
             res = unlink(backing_path_ent);
             if (res != 0) {
-                syslog(LOG_ERR, "refresh_dir: 2unable to remove link "
+                syslog(LOG_ERR, "refresh_dir: unable to remove link "
                                 "that no longer exists (%s): %s\n",
                        dent->d_name, strerror(errno));
                 return -1;
@@ -653,14 +730,22 @@ static int update_link_mapping(const char *maildir_path,
     struct backing_path_st *bpst_sub, *tmp = NULL;
     HASH_ITER(hh, bpst, bpst_sub, tmp) {
         HASH_DEL(bpst, bpst_sub);
-        const char *backing_path = bpst_sub->backing_path;
-        char backing_path_dir[PATH_MAX];
-        int res = dirname(backing_path, backing_path_dir);
-        if (res != 0) {
+        int dpv = bpst_sub->path.dir_path_value;
+        struct dir_path_st *dpst = NULL;
+        HASH_FIND_INT(dir_paths_reverse, &dpv, dpst);
+        if (!dpst) {
+            syslog(LOG_ERR, "update_link_mapping: error");
             abort();
         }
+
+        char backing_path[PATH_MAX];
+        strcpy(backing_path, dpst->dir_path);
+        strcat(backing_path, "/");
+        strcat(backing_path, bpst_sub->path.backing_path);
+
+        const char *backing_path_basename = bpst_sub->path.backing_path;
         char backing_path_dir2[PATH_MAX];
-        res = dirname(backing_path_dir, backing_path_dir2);
+        int res = dirname(dpst->dir_path, backing_path_dir2);
         if (res != 0) {
             abort();
         }
@@ -684,7 +769,6 @@ static int update_link_mapping(const char *maildir_path,
             return -1;
         }
         add_link_mapping(new_maildir_path, backing_path_dir2);
-        free(bpst_sub->backing_path);
         free(bpst_sub);
     }
 
