@@ -14,35 +14,6 @@
 #include <limits.h>
 #include <stddef.h>
 #include <pwd.h>
-#include "./uthash/uthash.h"
-
-struct path_st {
-    int dir_path_value;
-    char backing_path[];
-};
-
-struct backing_path_st {
-    int empty;
-    UT_hash_handle hh;
-    struct path_st path;
-};
-
-struct link_mapping_st {
-    char *maildir_path;
-    struct backing_path_st *backing_path_st;
-    UT_hash_handle hh;
-};
-
-struct link_mapping_st *link_mappings = NULL;
-
-static int max_value = 0;
-struct dir_path_st {
-    char *dir_path;
-    int value;
-    UT_hash_handle hh;
-};
-struct dir_path_st *dir_paths = NULL;
-struct dir_path_st *dir_paths_reverse = NULL;
 
 static struct options {
     const char *backing_dir;
@@ -53,6 +24,8 @@ static struct options {
     int delete_remove;
     int help;
 } options;
+
+static char *backing_dir_reverse;
 
 #define OPTION(t, p) \
     { t, offsetof(struct options, p), 1 }
@@ -124,6 +97,8 @@ static int dirname(const char *path, char *buf)
 {
     const char *last_slash = strrchr(path, '/');
     if (!last_slash) {
+        syslog(LOG_ERR, "dirname: cannot get directory name "
+                        "for '%s'", path);
         return -1;
     }
     int length = last_slash - path;
@@ -137,6 +112,8 @@ static int basename(const char *path, char *buf)
 {
     const char *last_slash = strrchr(path, '/');
     if (!last_slash) {
+        syslog(LOG_ERR, "basename: cannot get base name "
+                        "for '%s'", path);
         return -1;
     }
     int length = strlen(path) - (last_slash - path) - 1;
@@ -144,6 +121,12 @@ static int basename(const char *path, char *buf)
     buf[length] = 0;
 
     return 0;
+}
+
+static int is_dot(const char *entry)
+{
+    return ((strcmp(entry, ".")  == 0)
+         || (strcmp(entry, "..") == 0));
 }
 
 static int make_backing_path_if_required(const char *backing_path)
@@ -194,157 +177,124 @@ static int make_backing_path_if_required(const char *backing_path)
     return 0;
 }
 
-static int get_dir_int(const char *path)
+static int mkdirp(const char *path)
 {
-    char dir[PATH_MAX];
-    int res = dirname(path, dir);
+    struct stat st_buf;
+    memset(&st_buf, 0, sizeof(struct stat));
+    int res = stat(path, &st_buf);
     if (res != 0) {
-        syslog(LOG_ERR, "get_dir_int: failed: %s", path);
-        return -1;
-    }
-
-    struct dir_path_st *dpst1, *dpst2 = NULL;
-    HASH_FIND_STR(dir_paths, dir, dpst1);
-    if (dpst1) {
-        return dpst1->value;
-    }
-
-    dpst1 = malloc(sizeof(*dpst1));
-    if (!dpst1) {
-        syslog(LOG_ERR, "get_dir_int: malloc failed: %s",
-               strerror(errno));
-        return -1;
-    }
-
-    dpst1->dir_path = malloc(strlen(dir) + 1);
-    if (!dpst1->dir_path) {
-        syslog(LOG_ERR, "get_dir_int: malloc failed: %s",
-               strerror(errno));
-        return -1;
-    }
-    strcpy(dpst1->dir_path, dir);
-    /* todo: need to handle rollover somehow. */
-    dpst1->value = ++max_value;
-    HASH_ADD_KEYPTR(hh, dir_paths, dpst1->dir_path,
-                    strlen(dpst1->dir_path), dpst1);
-
-    dpst2 = malloc(sizeof(*dpst2));
-    dpst2->dir_path = malloc(strlen(dir) + 1);
-    strcpy(dpst2->dir_path, dir);
-    dpst2->value = max_value;
-    HASH_ADD_INT(dir_paths_reverse, value, dpst2);
-
-    return dpst1->value;
-}
-
-static int add_link_mapping(const char *maildir_path,
-                            const char *backing_path)
-{
-    struct link_mapping_st *lmst = NULL;
-    HASH_FIND_STR(link_mappings, maildir_path, lmst);
-    if (!lmst) {
-        const char *backing_path_basename =
-            strrchr(backing_path, '/') + 1;
-
-        struct backing_path_st *all = NULL;
-        int size = sizeof(struct backing_path_st) +
-                   strlen(backing_path_basename) + 1;
-        struct backing_path_st *bpst = malloc(size);
-        if (!bpst) {
-            syslog(LOG_ERR, "malloc failed: %s\n", strerror(errno));
-            abort();
+        res = mkdir(path, 0755);
+        if ((res != 0) && (errno == ENOENT)) {
+            char dir[PATH_MAX];
+            res = dirname(path, dir);
+            if (res != 0) {
+                return -1;
+            }
+            res = mkdirp(dir);
+            if (res != 0) {
+                return -1;
+            }
+            res = mkdir(path, 0755);
+            if (res != 0) {
+                syslog(LOG_ERR, "mkdirp: cannot make directory "
+                                "'%s': %s",
+                       path, strerror(errno));
+                return -1;
+            }
         }
-        bpst->path.dir_path_value = get_dir_int(backing_path);
-        strcpy(bpst->path.backing_path, backing_path_basename);
-        bpst->empty = 1;
-        HASH_ADD(hh, all, path, size, bpst);
-
-        lmst = malloc(sizeof(struct link_mapping_st));
-        if (!lmst) {
-            syslog(LOG_ERR, "malloc failed: %s\n", strerror(errno));
-            abort();
-        }
-        lmst->maildir_path = malloc(strlen(maildir_path) + 1);
-        if (!lmst->maildir_path) {
-            syslog(LOG_ERR, "malloc failed: %s\n", strerror(errno));
-            abort();
-        }
-        strcpy(lmst->maildir_path, maildir_path);
-        lmst->backing_path_st = all;
-        HASH_ADD_STR(link_mappings, maildir_path, lmst);
-    } else {
-        const char *backing_path_basename =
-            strrchr(backing_path, '/') + 1;
-
-        struct backing_path_st *bpst_fnd = NULL;
-        struct backing_path_st *bpst_all = lmst->backing_path_st;
-        int size = sizeof(struct backing_path_st) +
-                   strlen(backing_path_basename) + 1;
-        struct backing_path_st *bpst = malloc(size);
-        if (!bpst) {
-            syslog(LOG_ERR, "malloc failed: %s\n", strerror(errno));
-            abort();
-        }
-        bpst->path.dir_path_value = get_dir_int(backing_path);
-        strcpy(bpst->path.backing_path, backing_path_basename);
-        bpst->empty = 1;
-        HASH_FIND(hh, bpst_all, &bpst->path, size, bpst_fnd);
-        if (bpst_fnd) {
-            syslog(LOG_DEBUG, "add_link_mapping: %s already present "
-                              "as mapping from %s",
-                   backing_path, maildir_path);
-            abort();
-        }
-
-        HASH_ADD(hh, bpst_all, path, size, bpst);
     }
 
     return 0;
 }
 
-static struct backing_path_st *bpst;
+static int get_reverse_path(const char *maildir_path,
+                            const char *backing_path,
+                            char *buf)
+{
+    char filename[PATH_MAX];
+    int res = basename(backing_path, filename);
+    if (res != 0) {
+        return -1;
+    }
+
+    char backing_dir[PATH_MAX];
+    res = dirname(backing_path, backing_dir);
+    if (res != 0) {
+        return -1;
+    }
+    char backing_dir_single[PATH_MAX];
+    res = basename(backing_dir, backing_dir_single);
+    if (res != 0) {
+        return -1;
+    }
+
+    char backing_dir2[PATH_MAX];
+    res = dirname(backing_dir, backing_dir2);
+    if (res != 0) {
+        return -1;
+    }
+    char backing_dir_single2[PATH_MAX];
+    res = basename(backing_dir2, backing_dir_single2);
+    if (res != 0) {
+        return -1;
+    }
+
+    strcpy(buf, backing_dir_reverse);
+    strcat(buf, maildir_path);
+    strcat(buf, "/");
+    strcat(buf, backing_dir_single2);
+    strcat(buf, "/");
+    strcat(buf, backing_dir_single);
+    strcat(buf, "/");
+    strcat(buf, filename);
+
+    return 0;
+}
+
+static int add_link_mapping(const char *maildir_path,
+                            const char *backing_path)
+{
+    char reverse_path[PATH_MAX];
+    int res = get_reverse_path(maildir_path, backing_path,
+                               reverse_path);
+    if (res != 0) {
+        return -1;
+    }
+
+    char reverse_path_dir[PATH_MAX];
+    res = dirname(reverse_path, reverse_path_dir);
+    if (res != 0) {
+        return -1;
+    }
+    res = mkdirp(reverse_path_dir);
+    if (res != 0) {
+        return -1;
+    }
+
+    res = symlink(backing_path, reverse_path);
+    if (res != 0) {
+        syslog(LOG_ERR, "add_link_mapping: failed for '%s' to '%s': %s",
+               backing_path, reverse_path, strerror(errno));
+        return -1;
+    }
+
+    return 0;
+}
+
 static int remove_link_mapping(const char *maildir_path,
                                const char *backing_path)
 {
-    if (!bpst) {
-        bpst = malloc(4096);
-        if (!bpst) {
-            syslog(LOG_ERR, "malloc failed: %s\n", strerror(errno));
-            abort();
-        }
+    char reverse_path[PATH_MAX];
+    int res = get_reverse_path(maildir_path, backing_path,
+                               reverse_path);
+    if (res != 0) {
+        return -1;
     }
 
-    struct link_mapping_st *lmst = NULL;
-    HASH_FIND_STR(link_mappings, maildir_path, lmst);
-    if (!lmst) {
-        syslog(LOG_DEBUG, "remove_link_mapping: maildir_path %s "
-                          "not present",
-               maildir_path);
-        abort();
+    res = unlink(reverse_path);
+    if (res != 0) {
+        return -1;
     }
-
-    const char *backing_path_basename =
-        strrchr(backing_path, '/') + 1;
-
-    struct backing_path_st *bpst_fnd = NULL;
-    struct backing_path_st *bpst_all = lmst->backing_path_st;
-    int size = sizeof(struct backing_path_st) +
-                strlen(backing_path_basename) + 1;
-    memset(bpst, 0, 4096);
-    bpst->path.dir_path_value = get_dir_int(backing_path);
-    strcpy(bpst->path.backing_path, backing_path_basename);
-    bpst->empty = 1;
-    HASH_FIND(hh, bpst_all, &bpst->path, size, bpst_fnd);
-    if (!bpst_fnd) {
-        syslog(LOG_DEBUG, "remove_link_mapping: %s not present "
-                          "as mapping from %s",
-               backing_path, maildir_path);
-        abort();
-    }
-
-    HASH_DEL(bpst_all, bpst_fnd);
-    free(bpst_fnd);
-    free(bpst);
 
     return 0;
 }
@@ -357,15 +307,12 @@ static int update_backing_path(const char *backing_path,
 
     DIR *backing_dir_handle = opendir(backing_path);
     if (!backing_dir_handle) {
-        syslog(LOG_ERR, "refresh_dir: cannot open '%s': %s\n",
+        syslog(LOG_ERR, "update_backing_path: cannot open '%s': %s\n",
                backing_path, strerror(errno));
         return -1;
     }
     while ((dent = readdir(backing_dir_handle)) != NULL) {
-        if (strcmp(dent->d_name, ".") == 0) {
-            continue;
-        }
-        if (strcmp(dent->d_name, "..") == 0) {
+        if (is_dot(dent->d_name)) {
             continue;
         }
         char temp_path_ent[PATH_MAX];
@@ -376,8 +323,8 @@ static int update_backing_path(const char *backing_path,
         if (res == 0) {
             res = unlink(temp_path_ent);
             if (res != 0) {
-                syslog(LOG_ERR, "refresh_dir: unable to remove link "
-                                "that already exists (%s): %s\n",
+                syslog(LOG_ERR, "update_backing_path: unable to remove link "
+                                "'%s' that already exists: %s",
                        dent->d_name, strerror(errno));
                 return -1;
             }
@@ -389,26 +336,31 @@ static int update_backing_path(const char *backing_path,
             char maildir_path[PATH_MAX];
             ssize_t len = readlink(backing_path_ent, maildir_path, PATH_MAX);
             if (len == PATH_MAX) {
-                syslog(LOG_ERR, "refresh_dir: too much path data for '%s'\n",
-                    backing_path_ent);
+                syslog(LOG_ERR, "update_backing_path: too much path "
+                                "data for '%s",
+                       backing_path_ent);
                 return -1;
             }
             if (len == -1) {
-                syslog(LOG_ERR, "refresh_dir: unable to read link for '%s': %s\n",
-                    backing_path_ent, strerror(errno));
-                return -1 * errno;
+                syslog(LOG_ERR, "update_backing_path: unable to read "
+                                "link for '%s': %s\n",
+                       backing_path_ent, strerror(errno));
+                return -1;
             }
             maildir_path[len] = 0;
+
             res = remove_link_mapping(maildir_path, backing_path);
             if (res != 0) {
-                syslog(LOG_ERR, "refresh_dir: unable to remove link mapping");
+                syslog(LOG_ERR, "update_backing_path: unable "
+                                "to remove link mapping");
                 return -1;
             }
             res = unlink(backing_path_ent);
             if (res != 0) {
-                syslog(LOG_ERR, "refresh_dir: unable to remove link "
-                                "that no longer exists (%s): %s\n",
-                       dent->d_name, strerror(errno));
+                syslog(LOG_ERR, "update_backing_path: unable "
+                                "to remove previous backing path "
+                                "'%s': %s",
+                       backing_path_ent, strerror(errno));
                 return -1;
             }
         }
@@ -416,15 +368,12 @@ static int update_backing_path(const char *backing_path,
 
     DIR *temp_dir_handle = opendir(temp_path);
     if (!temp_dir_handle) {
-        syslog(LOG_ERR, "refresh_dir: cannot open '%s': %s\n",
+        syslog(LOG_ERR, "update_backing_path: cannot open '%s': %s\n",
                temp_path, strerror(errno));
         return -1;
     }
     while ((dent = readdir(temp_dir_handle)) != NULL) {
-        if (strcmp(dent->d_name, ".") == 0) {
-            continue;
-        }
-        if (strcmp(dent->d_name, "..") == 0) {
+        if (is_dot(dent->d_name)) {
             continue;
         }
         char backing_path_ent[PATH_MAX];
@@ -437,7 +386,8 @@ static int update_backing_path(const char *backing_path,
 
         int res = rename(temp_path_ent, backing_path_ent);
         if (res != 0) {
-            syslog(LOG_ERR, "refresh_dir: unable to rename link (%s -> %s): %s\n",
+            syslog(LOG_ERR, "update_backing_path: unable to "
+                            "rename link ('%s' -> '%s'): %s",
                    temp_path_ent, backing_path_ent, strerror(errno));
             return -1;
         }
@@ -445,14 +395,16 @@ static int update_backing_path(const char *backing_path,
         char maildir_path[PATH_MAX];
         ssize_t len = readlink(backing_path_ent, maildir_path, PATH_MAX);
         if (len == PATH_MAX) {
-            syslog(LOG_ERR, "refresh_dir: too much path data for '%s'\n",
-                backing_path_ent);
+            syslog(LOG_ERR, "update_backing_path: too much path "
+                            "data for '%s'",
+                   backing_path_ent);
             return -1;
         }
         if (len == -1) {
-            syslog(LOG_ERR, "refresh_dir: unable to read link for '%s': %s\n",
-                backing_path_ent, strerror(errno));
-            return -1 * errno;
+            syslog(LOG_ERR, "update_backing_path: unable to read "
+                            "link for '%s': %s\n",
+                   backing_path_ent, strerror(errno));
+            return -1;
         }
         maildir_path[len] = 0;
 
@@ -487,7 +439,7 @@ static int refresh_dir(const char *path, int force)
     int res = stat(search_path, &stbuf);
     if (res != 0) {
         syslog(LOG_ERR, "refresh_dir: '%s' cannot be refreshed\n", path);
-        return -1 * errno;
+        return -1;
     }
 
     char last_update_path[PATH_MAX];
@@ -717,64 +669,132 @@ static int update_link_mapping(const char *maildir_path,
                                const char *dirname_new,
                                const char *basename_new)
 {
-    struct link_mapping_st *lmst = NULL;
-    HASH_FIND_STR(link_mappings, maildir_path, lmst);
-    if (!lmst) {
-        syslog(LOG_ERR, "update_link_mapping: maildir_path "
-                        "not in mappings: %s",
-               maildir_path);
-        abort();
+    char reverse_path[PATH_MAX];
+    strcpy(reverse_path, backing_dir_reverse);
+    strcat(reverse_path, "/");
+    strcat(reverse_path, maildir_path);
+
+    struct dirent *dent;
+    struct dirent *dent_search;
+    struct dirent *dent_type;
+
+    DIR *reverse_handle = opendir(reverse_path);
+    if (!reverse_handle) {
+        syslog(LOG_ERR, "update_link_mapping: cannot open '%s': %s\n",
+               reverse_path, strerror(errno));
+        return -1;
     }
-
-    struct backing_path_st *bpst = lmst->backing_path_st;
-    struct backing_path_st *bpst_sub, *tmp = NULL;
-    HASH_ITER(hh, bpst, bpst_sub, tmp) {
-        HASH_DEL(bpst, bpst_sub);
-        int dpv = bpst_sub->path.dir_path_value;
-        struct dir_path_st *dpst = NULL;
-        HASH_FIND_INT(dir_paths_reverse, &dpv, dpst);
-        if (!dpst) {
-            syslog(LOG_ERR, "update_link_mapping: error");
-            abort();
+    while ((dent = readdir(reverse_handle)) != NULL) {
+        if (is_dot(dent->d_name)) {
+            continue;
         }
-
-        char backing_path[PATH_MAX];
-        strcpy(backing_path, dpst->dir_path);
-        strcat(backing_path, "/");
-        strcat(backing_path, bpst_sub->path.backing_path);
-
-        const char *backing_path_basename = bpst_sub->path.backing_path;
-        char backing_path_dir2[PATH_MAX];
-        int res = dirname(dpst->dir_path, backing_path_dir2);
-        if (res != 0) {
-            abort();
-        }
-        strcat(backing_path_dir2, "/");
-        strcat(backing_path_dir2, dirname_new);
-        strcat(backing_path_dir2, "/");
-        strcat(backing_path_dir2, basename_new);
-
-        res = unlink(backing_path);
-        if (res != 0) {
-            syslog(LOG_ERR, "update_link_mapping: unable to unlink "
-                            "%s: %s",
-                   backing_path, strerror(errno));
+        char search_path[PATH_MAX];
+        strcpy(search_path, reverse_path);
+        strcat(search_path, "/");
+        strcat(search_path, dent->d_name);
+        DIR *search_dir_handle = opendir(search_path);
+        if (!search_dir_handle) {
+            syslog(LOG_ERR, "update_link_mapping: cannot open search path '%s': %s\n",
+                   search_path, strerror(errno));
             return -1;
         }
-        res = symlink(new_maildir_path, backing_path_dir2);
-        if (res != 0) {
-            syslog(LOG_ERR, "update_link_mapping: unable to symlink "
-                            "%s to %s: %s",
-                   backing_path_dir2, new_maildir_path, strerror(errno));
-            return -1;
-        }
-        add_link_mapping(new_maildir_path, backing_path_dir2);
-        free(bpst_sub);
-    }
+        while ((dent_search = readdir(search_dir_handle)) != NULL) {
+            if (is_dot(dent_search->d_name)) {
+                continue;
+            }
+            char type_path[PATH_MAX];
+            strcpy(type_path, search_path);
+            strcat(type_path, "/");
+            strcat(type_path, dent_search->d_name);
+            DIR *type_dir_handle = opendir(type_path);
+            if (!type_dir_handle) {
+                syslog(LOG_ERR, "update_link_mapping: cannot open type path '%s': %s\n",
+                       type_path, strerror(errno));
+                return -1;
+            }
+            while ((dent_type = readdir(type_dir_handle)) != NULL) {
+                if (is_dot(dent_type->d_name)) {
+                    continue;
+                }
+                char reverse_path_full[PATH_MAX];
+                strcpy(reverse_path_full, type_path);
+                strcat(reverse_path_full, "/");
+                strcat(reverse_path_full, dent_type->d_name);
+                char backing_path[PATH_MAX];
 
-    HASH_DEL(link_mappings, lmst);
-    free(lmst->maildir_path);
-    free(lmst);
+                ssize_t len = readlink(reverse_path_full, backing_path, PATH_MAX);
+                if (len == PATH_MAX) {
+                    syslog(LOG_ERR, "update_link_mapping: too much path data for '%s'\n",
+                           reverse_path_full);
+                    return -1;
+                }
+                if (len == -1) {
+                    syslog(LOG_ERR, "update_link_mapping: unable to read link for '%s': %s\n",
+                           reverse_path_full, strerror(errno));
+                    return -1;
+                }
+                backing_path[len] = 0;
+
+                int res = remove_link_mapping(maildir_path, backing_path);
+                if (res != 0) {
+                    syslog(LOG_ERR, "update_link_mapping: cannot remove old link mapping");
+                    return -1;
+                }
+                res = unlink(backing_path);
+                if (res != 0) {
+                    syslog(LOG_ERR, "update_link_mapping: cannot remove old backing path");
+                    return -1;
+                }
+
+                char backing_path_new[PATH_MAX];
+                char backing_path_dir[PATH_MAX];
+                res = dirname(backing_path, backing_path_dir);
+                if (res != 0) {
+                    return -1;
+                }
+                char backing_path_dir2[PATH_MAX];
+                res = dirname(backing_path_dir, backing_path_dir2);
+                if (res != 0) {
+                    return -1;
+                }
+                char new_maildir_path_dir[PATH_MAX];
+                res = dirname(new_maildir_path, new_maildir_path_dir);
+                if (res != 0) {
+                    return -1;
+                }
+                char new_maildir_path_dir_single[PATH_MAX];
+                res = basename(new_maildir_path_dir,
+                               new_maildir_path_dir_single);
+                if (res != 0) {
+                    return -1;
+                }
+                char filename[PATH_MAX];
+                res = basename(new_maildir_path, filename);
+                if (res != 0) {
+                    return -1;
+                }
+
+                strcpy(backing_path_new, backing_path_dir2);
+                strcat(backing_path_new, "/");
+                strcat(backing_path_new, new_maildir_path_dir_single);
+                strcat(backing_path_new, "/");
+                strcat(backing_path_new, filename);
+
+                res = add_link_mapping(new_maildir_path, backing_path_new);
+                if (res != 0) {
+                    return -1;
+                }
+
+                res = symlink(new_maildir_path, backing_path_new);
+                if (res != 0) {
+                    syslog(LOG_ERR, "update_link_mapping: unable to "
+                                    "relink backing path '%s': %s\n",
+                           backing_path_new, strerror(errno));
+                    return -1;
+                }
+            }
+        }
+    }
 
     return 0;
 }
@@ -859,7 +879,7 @@ static int fsmu_rename(const char *from, const char *to)
     if (len == -1) {
         syslog(LOG_ERR, "rename: unable to read link for '%s': %s\n",
                from_backing_path, strerror(errno));
-        return -1 * errno;
+        return -1;
     }
     from_maildir_path[len] = 0;
 
@@ -891,8 +911,13 @@ static int fsmu_rename(const char *from, const char *to)
         return -1;
     }
 
-    update_link_mapping(from_maildir_path, to_maildir_path,
+    res = update_link_mapping(from_maildir_path, to_maildir_path,
                         to_dir_next_single, to_basename);
+    if (res != 0) {
+        syslog(LOG_ERR, "rename: ulm failed: %s\n",
+               strerror(errno));
+        return -1;
+    }
 
     syslog(LOG_DEBUG, "rename: '%s' to '%s' completed\n", from, to);
     return 0;
@@ -915,7 +940,7 @@ static int fsmu_read(const char *path, char *buf, size_t size,
     if (!backing_file) {
         syslog(LOG_ERR, "read: unable to open '%s': %s\n", path,
                strerror(errno));
-        return -1 * errno;
+        return -1;
     }
 
     res = fseek(backing_file, offset, SEEK_SET);
@@ -951,7 +976,7 @@ static int fsmu_mkdir(const char *path, mode_t mode)
     if (res != 0) {
         syslog(LOG_ERR, "mkdir: '%s': failed: %s\n",
                path, strerror(errno));
-        return -1 * errno;
+        return -1;
     }
 
     syslog(LOG_DEBUG, "mkdir: '%s' completed\n", path);
@@ -975,7 +1000,7 @@ static int fsmu_rmdir(const char *path)
     if (res != 0) {
         syslog(LOG_ERR, "rmdir: '%s': failed: %s\n",
                path, strerror(errno));
-        return -1 * errno;
+        return -1;
     }
 
     strcat(real_path, ".last-update");
@@ -1005,7 +1030,7 @@ static int fsmu_unlink(const char *path)
     if (res != 0) {
         syslog(LOG_ERR, "unlink: unable to resolve '%s'\n",
                path);
-        return -1 * errno;
+        return -1;
     }
 
     char maildir_path[PATH_MAX];
@@ -1018,7 +1043,7 @@ static int fsmu_unlink(const char *path)
     if (len == -1) {
         syslog(LOG_ERR, "unlink: unable to read link for '%s': %s\n",
                backing_path, strerror(errno));
-        return -1 * errno;
+        return -1;
     }
     maildir_path[len] = 0;
 
@@ -1026,13 +1051,13 @@ static int fsmu_unlink(const char *path)
     if (res != 0) {
         syslog(LOG_ERR, "unlink: '%s': unable to remove: %s\n",
                maildir_path, strerror(errno));
-        return -1 * errno;
+        return -1;
     }
     res = unlink(backing_path);
     if (res != 0) {
         syslog(LOG_ERR, "unlink: '%s': unable to remove: %s\n",
                backing_path, strerror(errno));
-        return -1 * errno;
+        return -1;
     }
 
     syslog(LOG_DEBUG, "unlink: '%s' completed\n", path);
@@ -1130,6 +1155,10 @@ int main(int argc, char **argv)
         expand_tilde(options.mu_home, mu_home_final);
         options.mu_home = mu_home_final;
     }
+
+    backing_dir_reverse = malloc(PATH_MAX);
+    strcpy(backing_dir_reverse, options.backing_dir);
+    strcat(backing_dir_reverse, "/.reverse");
 
     fuse_main(args.argc, args.argv, &operations, NULL);
     fuse_opt_free_args(&args);
