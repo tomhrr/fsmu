@@ -16,7 +16,7 @@ use File::Slurp qw(read_file);
 use File::Temp qw(tempdir);
 use List::Util qw(first);
 
-use Test::More tests => 27;
+use Test::More tests => 29;
 
 my $mount_dir;
 my $pid;
@@ -145,8 +145,8 @@ my $pid;
 
     $res = rmdir $query_dir2;
     ok($res, 'Able to call rmdir on query directory');
-    ok((-e $backing_dir.'/_to:asdf4@example.net'),
-        'Backing directory left in place');
+    ok((not -e $backing_dir.'/_to:asdf4@example.net'),
+        'Backing directory removed');
 
     # Confirm maildir queries work correctly.
 
@@ -180,6 +180,10 @@ my $pid;
         map { my $b = $_; $b =~ s/$query_dir5//; $b }
             @query_files5;
 
+    ok(@query_files4_nodir,
+        'First query has results');
+    ok(@query_files5_nodir,
+        'Second query has results');
     is_deeply(\@query_files4_nodir, \@query_files5_nodir,
         'Query directories cover the same files');
 

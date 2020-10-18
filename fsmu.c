@@ -295,6 +295,40 @@ static int remove_link_mapping(const char *maildir_path,
     if (res != 0) {
         return -1;
     }
+    char *last_slash = strrchr(reverse_path, '/');
+    *last_slash = 0;
+    res = rmdir(reverse_path);
+    if (res != 0) {
+        return -1;
+    }
+    last_slash = strrchr(reverse_path, '/');
+    *last_slash = 0;
+    res = rmdir(reverse_path);
+    if (res != 0) {
+        return -1;
+    }
+
+    for (;;) {
+        last_slash = strrchr(reverse_path, '/');
+        *last_slash = 0;
+
+        DIR *reverse_handle = opendir(reverse_path);
+        struct dirent *dent;
+        int count = 0;
+        while ((dent = readdir(reverse_handle)) != NULL) {
+            if (is_dot(dent->d_name)) {
+                continue;
+            }
+            count++;
+        }
+        if (count != 0) {
+            break;
+        }
+        res = rmdir(reverse_path);
+        if (res != 0) {
+            return -1;
+        }
+    }
 
     return 0;
 }
@@ -555,6 +589,61 @@ static int refresh_dir(const char *path, int force)
 
     res = update_backing_path(backing_path_new, temp_path_new);
     if (res != 0) {
+        return -1;
+    }
+
+    char tempdir_part[PATH_MAX];
+    strcpy(tempdir_part, temp_dirname);
+    strcat(tempdir_part, "/new");
+    res = rmdir(tempdir_part);
+    if (res != 0) {
+        syslog(LOG_ERR, "refresh_dir: cannot remove temp/new: %s",
+               strerror(errno));
+        return -1;
+    }
+    strcpy(tempdir_part, temp_dirname);
+    strcat(tempdir_part, "/cur");
+    res = rmdir(tempdir_part);
+    if (res != 0) {
+        syslog(LOG_ERR, "refresh_dir: cannot remove temp/cur: %s",
+               strerror(errno));
+        return -1;
+    }
+    strcpy(tempdir_part, temp_dirname);
+    strcat(tempdir_part, "/tmp");
+    res = rmdir(tempdir_part);
+    if (res != 0) {
+        syslog(LOG_ERR, "refresh_dir: cannot remove temp/tmp: %s",
+               strerror(errno));
+        return -1;
+    }
+
+    DIR *temp_dir_handle = opendir(temp_dirname);
+    if (!temp_dir_handle) {
+        syslog(LOG_ERR, "refresh_dir: cannot open '%s': %s\n",
+               temp_dirname, strerror(errno));
+        return -1;
+    }
+    struct dirent *dent;
+    while ((dent = readdir(temp_dir_handle)) != NULL) {
+        if (is_dot(dent->d_name)) {
+            continue;
+        }
+        char path[PATH_MAX];
+        strcpy(path, temp_dirname);
+        strcat(path, "/");
+        strcat(path, dent->d_name);
+        res = unlink(path);
+        if (res != 0) {
+            syslog(LOG_ERR, "refresh_dir: cannot unlink '%s': %s\n",
+                   path, strerror(errno));
+            return -1;
+        }
+    }
+    res = rmdir(temp_dirname);
+    if (res != 0) {
+        syslog(LOG_ERR, "refresh_dir: cannot remove temp: %s",
+               strerror(errno));
         return -1;
     }
 
@@ -912,7 +1001,7 @@ static int fsmu_rename(const char *from, const char *to)
     }
 
     res = update_link_mapping(from_maildir_path, to_maildir_path,
-                        to_dir_next_single, to_basename);
+                              to_dir_next_single, to_basename);
     if (res != 0) {
         syslog(LOG_ERR, "rename: ulm failed: %s\n",
                strerror(errno));
@@ -1009,6 +1098,112 @@ static int fsmu_rmdir(const char *path)
         syslog(LOG_INFO, "rmdir: '%s': unable to remove "
                          "last-update file: %s\n",
                path, strerror(errno));
+    }
+
+    path = path + 1;
+    char backing_path[PATH_MAX];
+    sprintf(backing_path, "%s/_%s/cur", options.backing_dir, path);
+    DIR *backing_handle = opendir(backing_path);
+    if (!backing_handle) {
+        syslog(LOG_ERR, "rmdir: cannot open '%s': %s\n",
+               backing_path, strerror(errno));
+        return -1;
+    }
+    struct dirent *dent;
+    while ((dent = readdir(backing_handle)) != NULL) {
+        if (is_dot(dent->d_name)) {
+            continue;
+        }
+        char backing_file[PATH_MAX];
+        strcpy(backing_file, backing_path);
+        strcat(backing_file, "/");
+        strcat(backing_file, dent->d_name);
+
+        char maildir_path[PATH_MAX];
+        ssize_t len = readlink(backing_file, maildir_path, PATH_MAX);
+        if (len == PATH_MAX) {
+            syslog(LOG_ERR, "rmdir: too much path data for '%s'\n",
+                backing_file);
+            return -1;
+        }
+        if (len == -1) {
+            syslog(LOG_ERR, "rmdir: unable to read link for '%s': %s\n",
+                backing_file, strerror(errno));
+            return -1;
+        }
+        maildir_path[len] = 0;
+
+        res = unlink(backing_file);
+        if (res != 0) {
+            syslog(LOG_ERR, "rmdir: cannot remove file '%s': %s",
+                   backing_file, strerror(errno));
+            return -1;
+        }
+        res = remove_link_mapping(maildir_path, backing_file);
+        if (res != 0) {
+            return -1;
+        }
+    }
+    res = rmdir(backing_path);
+    if (res != 0) {
+        syslog(LOG_ERR, "rmdir: cannot remove '%s': %s",
+                backing_path, strerror(errno));
+        return -1;
+    }
+
+    sprintf(backing_path, "%s/_%s/new", options.backing_dir, path);
+    backing_handle = opendir(backing_path);
+    if (!backing_handle) {
+        syslog(LOG_ERR, "rmdir: cannot open '%s': %s\n",
+               backing_path, strerror(errno));
+        return -1;
+    }
+    while ((dent = readdir(backing_handle)) != NULL) {
+        if (is_dot(dent->d_name)) {
+            continue;
+        }
+        char backing_file[PATH_MAX];
+        strcpy(backing_file, backing_path);
+        strcat(backing_file, "/");
+        strcat(backing_file, dent->d_name);
+
+        char maildir_path[PATH_MAX];
+        ssize_t len = readlink(backing_file, maildir_path, PATH_MAX);
+        if (len == PATH_MAX) {
+            syslog(LOG_ERR, "rmdir: too much path data for '%s'\n",
+                backing_file);
+            return -1;
+        }
+        if (len == -1) {
+            syslog(LOG_ERR, "rmdir: unable to read link for '%s': %s\n",
+                backing_file, strerror(errno));
+            return -1;
+        }
+        maildir_path[len] = 0;
+
+        res = unlink(backing_file);
+        if (res != 0) {
+            syslog(LOG_ERR, "rmdir: cannot remove file '%s': %s",
+                   backing_file, strerror(errno));
+            return -1;
+        }
+        res = remove_link_mapping(maildir_path, backing_file);
+        if (res != 0) {
+            return -1;
+        }
+    }
+    res = rmdir(backing_path);
+    if (res != 0) {
+        syslog(LOG_ERR, "rmdir: cannot remove '%s': %s",
+                backing_path, strerror(errno));
+        return -1;
+    }
+    sprintf(backing_path, "%s/_%s", options.backing_dir, path);
+    res = rmdir(backing_path);
+    if (res != 0) {
+        syslog(LOG_ERR, "rmdir: cannot remove '%s': %s",
+                backing_path, strerror(errno));
+        return -1;
     }
 
     syslog(LOG_DEBUG, "rmdir: '%s' completed\n", path);
