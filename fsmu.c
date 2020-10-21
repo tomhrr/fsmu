@@ -733,12 +733,20 @@ static int fsmu_getattr(const char *path, struct stat *stbuf)
     }
 
     int len = strlen(backing_path);
-    if (len >= 4) {
-        const char *tail = backing_path + len - 3;
-        if (   (strcmp(tail, "cur") == 0)
-            || (strcmp(tail, "new") == 0)) {
+    if (len >= 5) {
+        const char *tail = backing_path + len - 4;
+        if (   (strcmp(tail, "/cur") == 0)
+            || (strcmp(tail, "/new") == 0)) {
             syslog(LOG_INFO, "getattr: refreshing cur/new path\n", path);
             refresh_dir(path, 0);
+        }
+    }
+    if (len >= 10) {
+        const char *tail = backing_path + len - 9;
+        if (strcmp(tail, "/.refresh") == 0) {
+            stbuf->st_mode = S_IFREG;
+            stbuf->st_size = 0;
+            return 0;
         }
     }
 
@@ -1017,6 +1025,16 @@ static int fsmu_read(const char *path, char *buf, size_t size,
 {
     syslog(LOG_DEBUG, "read: '%s'\n", path);
     verify_path(path);
+
+    int len = strlen(path);
+    if (len >= 10) {
+        const char *tail = path + len - 9;
+        if (strcmp(tail, "/.refresh") == 0) {
+            syslog(LOG_INFO, "getattr: forcibly refreshing path\n", path);
+            refresh_dir(path, 1);
+            return 0;
+        }
+    }
 
     char backing_path[PATH_MAX];
     int res = resolve_path(path, backing_path);

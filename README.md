@@ -42,21 +42,23 @@ before being used as a query, to work around `/` not being permitted
 in file/directory names.  `rmdir` can be used to remove a query
 directory, regardless of whether it has been populated.
 
-Movement of mail within a search directory is supported, and
-propagates to the underlying maildir.  This means that changes to a
-message's flags, as well as movement from `new` to `cur` and
-vice-versa, takes effect on the message in its original maildir.
+Movement of mail within a query directory is supported, and propagates
+to the underlying maildir, as well as to any other query directories
+that have the same message.  This means that changes to a message's
+flags, as well as movement from `new` to `cur` and vice-versa, takes
+effect on the message in those other locations.
 
 Whenever `cur` or `new` within the query directory is accessed, the
 query results are refreshed if that hasn't happened within the last 30
 seconds.  This value can be changed by way of the `--refresh-timeout`
-option.
+option.  A query directory can be forcibly refreshed by attempting to
+read a file named `.refresh` at the top-level of the query directory.
 
 By default, indexing is not performed before querying.  This can be
 enabled by way of the `--enable-indexing` option.
 
 By default, deletion is a no-op.  To have deletion take effect in both
-the search directory and the underlying maildir, pass the
+the query directory and the underlying maildir, pass the
 `--delete-remove` option.
 
 Multithreaded operation is not currently supported, so the `-s` flag
