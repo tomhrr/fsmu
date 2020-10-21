@@ -45,7 +45,7 @@ directory, regardless of whether it has been populated.
 Movement of mail within a query directory is supported, and propagates
 to the underlying maildir, as well as to any other query directories
 that have the same message.  This means that changes to a message's
-flags, as well as movement from `new` to `cur` and vice-versa, takes
+flags, as well as movement from `new` to `cur` and vice-versa, take
 effect on the message in those other locations.
 
 Whenever `cur` or `new` within the query directory is accessed, the

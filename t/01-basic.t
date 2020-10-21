@@ -110,6 +110,7 @@ my $pid;
     eval { rename $new_file, $new_new_file };
     $info = $!;
     ok((not $@), "Renamed file into different directory");
+    diag $@ if $@;
     diag $info if $info;
     ok((not -e $new_file),
         "Original file in maildir no longer exists");

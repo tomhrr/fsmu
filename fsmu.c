@@ -764,7 +764,8 @@ static int fsmu_getattr(const char *path, struct stat *stbuf)
 static int update_link_mapping(const char *maildir_path,
                                const char *new_maildir_path,
                                const char *dirname_new,
-                               const char *basename_new)
+                               const char *basename_new,
+                               const char *flags)
 {
     char reverse_path[PATH_MAX];
     strcpy(reverse_path, backing_dir_reverse);
@@ -865,17 +866,29 @@ static int update_link_mapping(const char *maildir_path,
                 if (res != 0) {
                     return -1;
                 }
-                char filename[PATH_MAX];
-                res = basename(new_maildir_path, filename);
-                if (res != 0) {
-                    return -1;
-                }
 
                 strcpy(backing_path_new, backing_path_dir2);
                 strcat(backing_path_new, "/");
                 strcat(backing_path_new, new_maildir_path_dir_single);
                 strcat(backing_path_new, "/");
-                strcat(backing_path_new, filename);
+
+                if (!flags) {
+                    strncat(backing_path_new, basename_new, PATH_MAX);
+                } else {
+                    char filename[PATH_MAX];
+                    res = basename(backing_path, filename);
+                    if (res != 0) {
+                        return -1;
+                    }
+                    char *to_flags = strrchr(filename, ':');
+                    if (!to_flags) {
+                        strncat(backing_path_new, filename, PATH_MAX);
+                        strncat(backing_path_new, flags, PATH_MAX);
+                    } else {
+                        strcpy(to_flags, flags);
+                        strncat(backing_path_new, filename, PATH_MAX);
+                    }
+                }
 
                 res = add_link_mapping(new_maildir_path, backing_path_new);
                 if (res != 0) {
@@ -896,11 +909,51 @@ static int update_link_mapping(const char *maildir_path,
     return 0;
 }
 
+static int equal_to_flags(const char *path1, const char *path2)
+{
+    const char *basename1 = strrchr(path1, '/');
+    const char *basename2 = strrchr(path2, '/');
+    if (!basename1 || !basename2) {
+        return -1;
+    }
+
+    const char *colon1 = strrchr(basename1, ':');
+    const char *colon2 = strrchr(basename2, ':');
+    if (!colon1 && !colon2) {
+        return 0;
+    }
+    if ((colon1 != 0) != (colon2 != 0)) {
+        return 0;
+    }
+
+    int len1 = colon1 - path1;
+    int len2 = colon2 - path2;
+    if (len1 != len2) {
+        return -1;
+    }
+
+    int res = strncmp(path1, path2, len1);
+    if (res == 0) {
+        return 0;
+    } else {
+        return -1;
+    }
+}
+
 static int fsmu_rename(const char *from, const char *to)
 {
     syslog(LOG_DEBUG, "rename: '%s' to '%s'\n", from, to);
     verify_path(from);
     verify_path(to);
+
+    const char *flags = NULL;
+    if (equal_to_flags(from, to) == 0) {
+        const char *basename = strrchr(to, '/');
+        flags = strchr(basename, ':');
+        if (flags && (strlen(flags) <= 1)) {
+            flags = NULL;
+        }
+    }
 
     if (from == to) {
         syslog(LOG_DEBUG, "rename: '%s' is the same as '%s'\n", from, to);
@@ -980,6 +1033,14 @@ static int fsmu_rename(const char *from, const char *to)
     }
     from_maildir_path[len] = 0;
 
+    char maildir_basename[PATH_MAX];
+    res = basename(from_maildir_path, maildir_basename);
+    if (res != 0) {
+        syslog(LOG_ERR, "rename: unable to get basename for '%s'\n",
+               from_maildir_path);
+        return -1;
+    }
+
     char from_maildir_dir[PATH_MAX];
     char to_maildir_path[PATH_MAX];
     res = dirname(from_maildir_path, from_maildir_dir);
@@ -998,7 +1059,20 @@ static int fsmu_rename(const char *from, const char *to)
     strcat(to_maildir_path, "/");
     strncat(to_maildir_path, to_dir_next_single, PATH_MAX);
     strcat(to_maildir_path, "/");
-    strncat(to_maildir_path, to_basename, PATH_MAX);
+    if (!flags) {
+        strncat(to_maildir_path, to_basename, PATH_MAX);
+    } else {
+        char *to_flags = strrchr(maildir_basename, ':');
+        if (!to_flags) {
+            strncat(to_maildir_path, maildir_basename, PATH_MAX);
+            strncat(to_maildir_path, flags, PATH_MAX);
+        } else {
+            strcpy(to_flags, flags);
+            strncat(to_maildir_path, maildir_basename, PATH_MAX);
+        }
+    }
+    syslog(LOG_DEBUG, "rename: maildir paths: (%s) -> (%s)",
+        from_maildir_path, to_maildir_path);
 
     res = rename(from_maildir_path, to_maildir_path);
     if (res != 0) {
@@ -1009,7 +1083,7 @@ static int fsmu_rename(const char *from, const char *to)
     }
 
     res = update_link_mapping(from_maildir_path, to_maildir_path,
-                              to_dir_next_single, to_basename);
+                              to_dir_next_single, to_basename, flags);
     if (res != 0) {
         syslog(LOG_ERR, "rename: ulm failed: %s\n",
                strerror(errno));
