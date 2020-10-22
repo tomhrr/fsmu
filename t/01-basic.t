@@ -180,9 +180,9 @@ my $pid;
     diag $@ if $@;
     diag $info if $info;
     ok((not -e $new_file),
-        "Original file in maildir no longer exists");
+        "Original file in query dir no longer exists");
     ok((-e $new_new_file),
-        "New file in maildir exists");
+        "New file in query dir exists");
 
     # Confirm maildir queries work correctly.
 
@@ -260,9 +260,9 @@ my $pid;
     diag $@ if $@;
     diag $info if $info;
     ok((not -e $new_file),
-        "Original file in maildir no longer exists");
+        "Original file in query dir no longer exists");
     ok((-e $new_new_file),
-        "New file in maildir exists");
+        "New file in query dir exists");
 
     @query_files4 = ();
     find(sub { push @query_files4, $File::Find::name },
