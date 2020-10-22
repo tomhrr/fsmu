@@ -10,13 +10,14 @@ use FsmuUtils qw(make_root_maildir
                  mu_init
                  mu_cmd);
 use autodie;
+use Digest::MD5;
 use File::Basename;
 use File::Find;
 use File::Slurp qw(read_file);
 use File::Temp qw(tempdir);
 use List::Util qw(first);
 
-use Test::More tests => 29;
+use Test::More tests => 34;
 
 my $mount_dir;
 my $pid;
@@ -40,8 +41,42 @@ my $pid;
         exit();
     }
 
+    my $get_md5 = sub {
+        my ($path) = @_;
+        open my $fh, '<', $path;
+        my $md5 = Digest::MD5->new();
+        my $ctx = $md5->addfile($fh);
+        my $digest = $ctx->hexdigest();
+        close $fh;
+        return $digest;
+    };
+
+    my $get_maildir_path = sub {
+        my ($query_dir_path) = @_;
+        my $basename = basename($query_dir_path);
+        $basename =~ s/^\d+_//;
+        my $md5 = $get_md5->($query_dir_path);
+        my @matches;
+        find(sub {
+            my $path = $File::Find::name;
+            if (-f $path) {
+                my $path_md5 = $get_md5->($path);
+                if ($md5 eq $path_md5) {
+                    push @matches, $path;
+                }
+            }
+        }, $dir);
+        if (@matches > 1) {
+            @matches = grep { /$basename/ } @matches;
+        }
+        if (@matches > 1) {
+            die "Multiple matches found";
+        }
+        return $matches[0];
+    };
+
     # Confirm basic query returns results.
-    
+
     my $query_dir = $mount_dir.'/from:user@example.org '.
                     'and not to:asdf4@example.net';
     mkdir $query_dir;
@@ -84,22 +119,54 @@ my $pid;
     # Rename mail item within original directory.
 
     my $cur_file = $cur_files[0];
+    my $md_cur_file = $get_maildir_path->($cur_file);
     my $new_cur_file = $cur_file.':2,S';
+    $! = undef;
     eval { rename $cur_file, $new_cur_file };
     my $info = $!;
     ok((not $@), "Renamed file within existing directory");
     diag $info if $info;
     ok((not -e $cur_file),
-        "Original file in maildir no longer exists");
+        "Original file in query dir no longer exists");
     ok((-e $new_cur_file),
+        "New file in query dir exists");
+    my $md_new_cur_file = $get_maildir_path->($new_cur_file);
+    ok((not -e $md_cur_file),
+        "Original file in maildir no longer exists");
+    ok((-e $md_new_cur_file),
         "New file in maildir exists");
 
-    my $basename = basename($cur_file);
-    my $new_basename = basename($new_cur_file);
-    ok((not -e $query_dir.'/cur/'.$basename),
+    # Confirm rename affected only the flags in the maildir path.
+
+    my $md_basename = basename($md_cur_file);
+    my $md_new_basename = basename($md_new_cur_file);
+    $md_basename =~ s/(.*):.*/$1/;
+    $md_new_basename =~ s/(.*):.*/$1/;
+    is($md_basename, $md_new_basename,
+        'Original maildir path unaffected except for flag change');
+
+    # Rename mail item within original directory, with new name.
+
+    $cur_file = $cur_files[1];
+    $new_cur_file = $cur_file;
+    $new_cur_file =~ s/(.*)\/.*/$1\/new-path/;
+    $! = undef;
+    eval { rename $cur_file, $new_cur_file };
+    $info = $!;
+    ok((not $@), "Renamed file within existing directory (new name)");
+    diag $info if $info;
+    ok((not -e $cur_file),
         "Original file in query dir no longer exists");
-    ok((-e $query_dir.'/cur/'.$new_basename),
+    ok((-e $new_cur_file),
         "New file in query dir exists");
+    $md_new_cur_file = $get_maildir_path->($new_cur_file);
+    ok((not -e $md_cur_file),
+        "Original file in maildir no longer exists");
+    ok((-e $md_new_cur_file),
+        "New file in maildir exists");
+    $md_new_basename = basename($md_new_cur_file);
+    is($md_new_basename, 'new-path',
+        'New name used in maildir path');
 
     # Rename mail item into different directory (first level up).
 
@@ -116,11 +183,15 @@ my $pid;
         "Original file in maildir no longer exists");
     ok((-e $new_new_file),
         "New file in maildir exists");
-    $basename = basename($new_file);
-    ok((not -e $query_dir.'/new/'.$basename),
-        "Original file in query dir no longer exists");
-    ok((-e $query_dir.'/cur/'.$new_basename),
-        "New file in query dir exists");
+
+    # Confirm maildir queries work correctly.
+
+    my $query_dir3 = $mount_dir.'/maildir:+asdf+asdf4';
+    mkdir $query_dir3;
+    @query_files = ();
+    find(sub { push @query_files, $File::Find::name },
+         $query_dir3.'/cur');
+    is(@query_files, 5, "Found 5 'cur' files");
 
     # Confirm query directly to cur/new works.
 
@@ -148,15 +219,6 @@ my $pid;
     ok($res, 'Able to call rmdir on query directory');
     ok((not -e $backing_dir.'/_to:asdf4@example.net'),
         'Backing directory removed');
-
-    # Confirm maildir queries work correctly.
-
-    my $query_dir3 = $mount_dir.'/maildir:+asdf+asdf4';
-    mkdir $query_dir3;
-    @query_files = ();
-    find(sub { push @query_files, $File::Find::name },
-         $query_dir3.'/cur');
-    is(@query_files, 5, "Found 5 'cur' files");
 
     # Set up two query directories that overlap.  Confirm that
     # movement in one causes updates in the other.
