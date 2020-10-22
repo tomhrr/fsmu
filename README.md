@@ -46,7 +46,11 @@ Movement of mail within a query directory is supported, and propagates
 to the underlying maildir, as well as to any other query directories
 that have the same message.  This means that changes to a message's
 flags, as well as movement from `new` to `cur` and vice-versa, take
-effect on the message in those other locations.
+effect on the message in those other locations.  If the movement is
+such that the only change to the filename is to its maildir flags,
+then propagation applies that change to the original filename in the
+maildir and any other affected query directories, rather than using
+the target filename from the first movement operation.
 
 Whenever `cur` or `new` within the query directory is accessed, the
 query results are refreshed if that hasn't happened within the last 30
