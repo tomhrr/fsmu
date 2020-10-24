@@ -314,7 +314,7 @@ static int remove_link_mapping(const char *maildir_path,
         int len = strlen(reverse_path);
         if (len >= 9) {
             const char *tail = reverse_path + len - 9;
-            if (strcmp(tail, "/.reverse") == 0) {
+            if (strcmp(tail, "/_reverse") == 0) {
                 return 0;
             }
         }
@@ -334,6 +334,7 @@ static int remove_link_mapping(const char *maildir_path,
             }
             count++;
         }
+        closedir(reverse_handle);
         if (count != 0) {
             break;
         }
@@ -373,6 +374,7 @@ static int update_backing_path(const char *backing_path,
                 syslog(LOG_ERR, "update_backing_path: unable to remove link "
                                 "'%s' that already exists: %s",
                        dent->d_name, strerror(errno));
+                closedir(backing_dir_handle);
                 return -1;
             }
         } else {
@@ -386,12 +388,14 @@ static int update_backing_path(const char *backing_path,
                 syslog(LOG_ERR, "update_backing_path: too much path "
                                 "data for '%s",
                        backing_path_ent);
+                closedir(backing_dir_handle);
                 return -1;
             }
             if (len == -1) {
                 syslog(LOG_ERR, "update_backing_path: unable to read "
                                 "link for '%s': %s\n",
                        backing_path_ent, strerror(errno));
+                closedir(backing_dir_handle);
                 return -1;
             }
             maildir_path[len] = 0;
@@ -400,6 +404,7 @@ static int update_backing_path(const char *backing_path,
             if (res != 0) {
                 syslog(LOG_ERR, "update_backing_path: unable "
                                 "to remove link mapping");
+                closedir(backing_dir_handle);
                 return -1;
             }
             res = unlink(backing_path_ent);
@@ -408,10 +413,12 @@ static int update_backing_path(const char *backing_path,
                                 "to remove previous backing path "
                                 "'%s': %s",
                        backing_path_ent, strerror(errno));
+                closedir(backing_dir_handle);
                 return -1;
             }
         }
     }
+    closedir(backing_dir_handle);
 
     DIR *temp_dir_handle = opendir(temp_path);
     if (!temp_dir_handle) {
@@ -436,6 +443,7 @@ static int update_backing_path(const char *backing_path,
             syslog(LOG_ERR, "update_backing_path: unable to "
                             "rename link ('%s' -> '%s'): %s",
                    temp_path_ent, backing_path_ent, strerror(errno));
+            closedir(temp_dir_handle);
             return -1;
         }
 
@@ -445,18 +453,21 @@ static int update_backing_path(const char *backing_path,
             syslog(LOG_ERR, "update_backing_path: too much path "
                             "data for '%s'",
                    backing_path_ent);
+            closedir(temp_dir_handle);
             return -1;
         }
         if (len == -1) {
             syslog(LOG_ERR, "update_backing_path: unable to read "
                             "link for '%s': %s\n",
                    backing_path_ent, strerror(errno));
+            closedir(temp_dir_handle);
             return -1;
         }
         maildir_path[len] = 0;
 
         add_link_mapping(maildir_path, backing_path_ent);
     }
+    closedir(temp_dir_handle);
 
     return 0;
 }
@@ -552,7 +563,7 @@ static int refresh_dir(const char *path, int force)
 
     char template[PATH_MAX];
     strcpy(template, options.backing_dir);
-    strcat(template, "/tempdir.XXXXXX");
+    strcat(template, "/_tempdir.XXXXXX");
     char *temp_dirname = mkdtemp(template);
     if (!temp_dirname) {
         syslog(LOG_ERR, "refresh_dir: unable to make temporary "
@@ -650,9 +661,11 @@ static int refresh_dir(const char *path, int force)
         if (res != 0) {
             syslog(LOG_ERR, "refresh_dir: cannot unlink '%s': %s\n",
                    path, strerror(errno));
+            closedir(temp_dir_handle);
             return -1;
         }
     }
+    closedir(temp_dir_handle);
     res = rmdir(temp_dirname);
     if (res != 0) {
         syslog(LOG_ERR, "refresh_dir: cannot remove temp: %s",
@@ -684,12 +697,7 @@ static int fsmu_readdir(const char *path, void *buf,
             }
             filler(buf, dent->d_name, 0, 0);
         }
-        int res = closedir(backing_dir_handle);
-        if (res != 0) {
-            syslog(LOG_ERR, "readdir: cannot close '%s': %s\n",
-                   options.backing_dir, strerror(errno));
-            return -1;
-        }
+        closedir(backing_dir_handle);
 
         syslog(LOG_DEBUG, "readdir: '%s' completed\n", path);
         return 0;
@@ -715,12 +723,7 @@ static int fsmu_readdir(const char *path, void *buf,
     while ((dent = readdir(dir_handle)) != NULL) {
         filler(buf, dent->d_name, 0, 0);
     }
-    res = closedir(dir_handle);
-    if (res != 0) {
-        syslog(LOG_ERR, "readdir: cannot close '%s': %s\n",
-               backing_path, strerror(errno));
-        return -1;
-    }
+    closedir(dir_handle);
 
     syslog(LOG_DEBUG, "readdir: '%s' completed\n", path);
     return 0;
@@ -807,6 +810,7 @@ static int update_link_mapping(const char *maildir_path,
         if (!search_dir_handle) {
             syslog(LOG_ERR, "update_link_mapping: cannot open search path '%s': %s\n",
                    search_path, strerror(errno));
+            closedir(reverse_handle);
             return -1;
         }
         while ((dent_search = readdir(search_dir_handle)) != NULL) {
@@ -821,6 +825,8 @@ static int update_link_mapping(const char *maildir_path,
             if (!type_dir_handle) {
                 syslog(LOG_ERR, "update_link_mapping: cannot open type path '%s': %s\n",
                        type_path, strerror(errno));
+                closedir(search_dir_handle);
+                closedir(reverse_handle);
                 return -1;
             }
             while ((dent_type = readdir(type_dir_handle)) != NULL) {
@@ -837,11 +843,17 @@ static int update_link_mapping(const char *maildir_path,
                 if (len == PATH_MAX) {
                     syslog(LOG_ERR, "update_link_mapping: too much path data for '%s'\n",
                            reverse_path_full);
+                    closedir(type_dir_handle);
+                    closedir(search_dir_handle);
+                    closedir(reverse_handle);
                     return -1;
                 }
                 if (len == -1) {
                     syslog(LOG_ERR, "update_link_mapping: unable to read link for '%s': %s\n",
                            reverse_path_full, strerror(errno));
+                    closedir(type_dir_handle);
+                    closedir(search_dir_handle);
+                    closedir(reverse_handle);
                     return -1;
                 }
                 backing_path[len] = 0;
@@ -849,11 +861,17 @@ static int update_link_mapping(const char *maildir_path,
                 int res = remove_link_mapping(maildir_path, backing_path);
                 if (res != 0) {
                     syslog(LOG_ERR, "update_link_mapping: cannot remove old link mapping");
+                    closedir(type_dir_handle);
+                    closedir(search_dir_handle);
+                    closedir(reverse_handle);
                     return -1;
                 }
                 res = unlink(backing_path);
                 if (res != 0) {
                     syslog(LOG_ERR, "update_link_mapping: cannot remove old backing path");
+                    closedir(type_dir_handle);
+                    closedir(search_dir_handle);
+                    closedir(reverse_handle);
                     return -1;
                 }
 
@@ -861,22 +879,34 @@ static int update_link_mapping(const char *maildir_path,
                 char backing_path_dir[PATH_MAX];
                 res = dirname(backing_path, backing_path_dir);
                 if (res != 0) {
+                    closedir(type_dir_handle);
+                    closedir(search_dir_handle);
+                    closedir(reverse_handle);
                     return -1;
                 }
                 char backing_path_dir2[PATH_MAX];
                 res = dirname(backing_path_dir, backing_path_dir2);
                 if (res != 0) {
+                    closedir(type_dir_handle);
+                    closedir(search_dir_handle);
+                    closedir(reverse_handle);
                     return -1;
                 }
                 char new_maildir_path_dir[PATH_MAX];
                 res = dirname(new_maildir_path, new_maildir_path_dir);
                 if (res != 0) {
+                    closedir(type_dir_handle);
+                    closedir(search_dir_handle);
+                    closedir(reverse_handle);
                     return -1;
                 }
                 char new_maildir_path_dir_single[PATH_MAX];
                 res = basename(new_maildir_path_dir,
                                new_maildir_path_dir_single);
                 if (res != 0) {
+                    closedir(type_dir_handle);
+                    closedir(search_dir_handle);
+                    closedir(reverse_handle);
                     return -1;
                 }
 
@@ -891,6 +921,9 @@ static int update_link_mapping(const char *maildir_path,
                     char filename[PATH_MAX];
                     res = basename(backing_path, filename);
                     if (res != 0) {
+                        closedir(type_dir_handle);
+                        closedir(search_dir_handle);
+                        closedir(reverse_handle);
                         return -1;
                     }
                     char *to_flags = strrchr(filename, ':');
@@ -905,6 +938,9 @@ static int update_link_mapping(const char *maildir_path,
 
                 res = add_link_mapping(new_maildir_path, backing_path_new);
                 if (res != 0) {
+                    closedir(type_dir_handle);
+                    closedir(search_dir_handle);
+                    closedir(reverse_handle);
                     return -1;
                 }
 
@@ -913,11 +949,17 @@ static int update_link_mapping(const char *maildir_path,
                     syslog(LOG_ERR, "update_link_mapping: unable to "
                                     "relink backing path '%s': %s\n",
                            backing_path_new, strerror(errno));
+                    closedir(type_dir_handle);
+                    closedir(search_dir_handle);
+                    closedir(reverse_handle);
                     return -1;
                 }
             }
+            closedir(type_dir_handle);
         }
+        closedir(search_dir_handle);
     }
+    closedir(reverse_handle);
 
     return 0;
 }
@@ -1229,11 +1271,13 @@ static int fsmu_rmdir(const char *path)
         if (len == PATH_MAX) {
             syslog(LOG_ERR, "rmdir: too much path data for '%s'\n",
                 backing_file);
+            closedir(backing_handle);
             return -1;
         }
         if (len == -1) {
             syslog(LOG_ERR, "rmdir: unable to read link for '%s': %s\n",
                 backing_file, strerror(errno));
+            closedir(backing_handle);
             return -1;
         }
         maildir_path[len] = 0;
@@ -1242,13 +1286,16 @@ static int fsmu_rmdir(const char *path)
         if (res != 0) {
             syslog(LOG_ERR, "rmdir: cannot remove file '%s': %s",
                    backing_file, strerror(errno));
+            closedir(backing_handle);
             return -1;
         }
         res = remove_link_mapping(maildir_path, backing_file);
         if (res != 0) {
+            closedir(backing_handle);
             return -1;
         }
     }
+    closedir(backing_handle);
     res = rmdir(backing_path);
     if (res != 0) {
         syslog(LOG_ERR, "rmdir: cannot remove '%s': %s",
@@ -1276,12 +1323,14 @@ static int fsmu_rmdir(const char *path)
         ssize_t len = readlink(backing_file, maildir_path, PATH_MAX);
         if (len == PATH_MAX) {
             syslog(LOG_ERR, "rmdir: too much path data for '%s'\n",
-                backing_file);
+                   backing_file);
+            closedir(backing_handle);
             return -1;
         }
         if (len == -1) {
             syslog(LOG_ERR, "rmdir: unable to read link for '%s': %s\n",
-                backing_file, strerror(errno));
+                   backing_file, strerror(errno));
+            closedir(backing_handle);
             return -1;
         }
         maildir_path[len] = 0;
@@ -1290,13 +1339,16 @@ static int fsmu_rmdir(const char *path)
         if (res != 0) {
             syslog(LOG_ERR, "rmdir: cannot remove file '%s': %s",
                    backing_file, strerror(errno));
+            closedir(backing_handle);
             return -1;
         }
         res = remove_link_mapping(maildir_path, backing_file);
         if (res != 0) {
+            closedir(backing_handle);
             return -1;
         }
     }
+    closedir(backing_handle);
     res = rmdir(backing_path);
     if (res != 0) {
         syslog(LOG_ERR, "rmdir: cannot remove '%s': %s",
@@ -1458,7 +1510,7 @@ int main(int argc, char **argv)
 
     backing_dir_reverse = malloc(PATH_MAX);
     strcpy(backing_dir_reverse, options.backing_dir);
-    strcat(backing_dir_reverse, "/.reverse");
+    strcat(backing_dir_reverse, "/_reverse");
 
     fuse_main(args.argc, args.argv, &operations, NULL);
     fuse_opt_free_args(&args);

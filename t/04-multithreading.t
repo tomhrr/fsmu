@@ -17,21 +17,25 @@ use File::Spec::Functions qw(no_upwards);
 use File::Temp qw(tempdir);
 use List::Util qw(first);
 
-use Test::More tests => 34;
+use Test::More;
 
 my $mount_dir;
 my $top_pid = $$;
 my $pid;
 my @pids;
 
+if ($ENV{'FSMU_DEBUG'}) {
+    plan tests => 13;
+} else {
+    plan skip_all => 'FSMU_DEBUG not set';
+}
+
 sub debug
 {
     my (@data) = @_;
 
-    if ($ENV{'FSMU_DEBUG'}) {
-        for my $d (@data) {
-            print STDERR "$$: $d\n";
-        }
+    for my $d (@data) {
+        print STDERR "$$: $d\n";
     }
 
     return 1;
@@ -64,6 +68,14 @@ sub debug
         'data',
     );
     my @dirs = qw(cur new);
+    my @addresses = (
+        'user@example.org',
+        'asdf1@example.net',
+        'asdf2@example.net',
+        'asdf3@example.net',
+        'asdf4@example.net',
+        'asdf5@example.net',
+    );
 
     my $get_existing_query_dir = sub {
         my $tries = 100;
@@ -74,6 +86,14 @@ sub debug
             $query_dir = "$mount_dir/$query";
         } while ((not -e $query_dir) and ($tries--));
         return ($query, $query_dir);
+    };
+
+    my @root_maildirs = qw(asdf qwer zxcv tyui ghjk);
+    my @sub_maildirs = qw(asdf1 asdf2 asdf3 asdf4 asdf5);
+    my $get_existing_maildir = sub {
+        return $dir.'/'.
+               $root_maildirs[int(rand(@root_maildirs))].'/'.
+               $sub_maildirs[int(rand(@sub_maildirs))];
     };
 
     my $get_existing_file = sub {
@@ -88,6 +108,7 @@ sub debug
         eval {
             my $dh;
             my $dir = $dirs[int(rand(@dirs))];
+            no warnings;
             opendir $dh, $query_dir.'/'.$dir or die $!;
             my @files = no_upwards readdir($dh);
             $file = $dir.'/'.$files[int(rand(@files))];
@@ -105,6 +126,7 @@ sub debug
             my $query_dir = "$mount_dir/$query";
             if (-e $query_dir) {
                 debug("$query exists, skipping");
+                return;
             }
             my $res = mkdir($query_dir);
             if ($res) {
@@ -112,18 +134,20 @@ sub debug
             } else {
                 debug("$query directory not created: $!");
             }
+            find (sub {}, $query_dir);
         },
         'remove-query' => sub {
             my $query = $queries[int(rand(@queries))];
             my $query_dir = "$mount_dir/$query";
             if (not -e $query_dir) {
                 debug("$query does not exist, skipping");
+                return;
             }
             my $res = rmdir($query_dir);
             if ($res) {
-                debug("$query directory created");
+                debug("$query directory removed");
             } else {
-                debug("$query directory not created: $!");
+                debug("$query directory not removed: $!");
             }
         },
         'refresh' => sub {
@@ -220,17 +244,52 @@ sub debug
                 debug("delete succeeded");
             }
         },
+        'write-message' => sub {
+            my $entity = make_message($addresses[int(rand(@addresses))],
+                                      $addresses[int(rand(@addresses))],
+                                      'new-subject',
+                                      'new-data');
+            my $maildir = $get_existing_maildir->();
+            if (not $maildir) {
+                debug("write-message failed: no existing maildir ".
+                      "directory found");
+                return;
+            }
+            eval {
+                write_message($entity, $maildir.'/'.$dirs[int(rand(@dirs))]);
+            };
+            if (my $error = $@) {
+                debug("write-message failed: $error");
+            } else {
+                debug("write-message succeeded");
+            }
+        },
     );
     my @operation_names = keys %operations;
+
+    for my $query (@queries) {
+        my $query_dir = "$mount_dir/$query";
+        my $res = mkdir($query_dir);
+        ok($res, "Made query directory for '$query'");
+        find (sub {}, $query_dir);
+    }
 
     my @pids;
     for (my $i = 0; $i < 8; $i++) {
         if (my $pid = fork()) {
             push @pids, $pid;
         } else {
-            for (1..1000) {
+            for my $i (1..1000) {
                 my $operation_name =
                     $operation_names[int(rand(@operation_names))];
+                if (($operation_name eq 'remove-query')
+                        and ($i % 50 != 0)) {
+                    next;
+                }
+                if (($operation_name eq 'delete')
+                        and ($i % 100 != 0)) {
+                    next;
+                }
                 debug("$operation_name begin");
                 $operations{$operation_name}->();
                 debug("$operation_name end");
@@ -241,6 +300,54 @@ sub debug
 
     for my $pid (@pids) {
         waitpid($pid, 0);
+    }
+
+    sleep(2);
+    ok(1, 'Operations completed successfully');
+
+    my @paths;
+    find(sub {
+        if ((-f $File::Find::name)
+                and ($File::Find::name !~ /\.last-update/)) {
+            push @paths, $File::Find::name;
+        }
+    }, $mount_dir);
+    my $scalar_paths = scalar @paths;
+    ok(@paths, "Found some files ($scalar_paths) in the mount directory");
+
+    my %path_lookup =
+        map { my $path = $_;
+              $path =~ s/$mount_dir\///;
+              $path => 1 }
+            @paths;
+
+    my @reverse_paths;
+    find(sub {
+        if (-f $File::Find::name) {
+            push @reverse_paths, $File::Find::name;
+        }
+    }, $backing_dir.'/_reverse');
+
+    my $exists = 0;
+    my $not_exists = 0;
+    for my $reverse_path (@reverse_paths) {
+        my $real_path = readlink($reverse_path);
+        $real_path =~ s/$backing_dir\/_//;
+        if ($path_lookup{$real_path}) {
+            $exists++;
+            delete $path_lookup{$real_path};
+        } else {
+            $not_exists++;
+        }
+    }
+
+    ok($exists, 'Found some reverse path mappings');
+    ok((not $not_exists), 'All reverse paths map to real files');
+    my $res = ok((not keys %path_lookup),
+        'All real files map to reverse paths');
+    if (not $res) {
+        use Data::Dumper;
+        print Dumper(\%path_lookup);
     }
 }
 

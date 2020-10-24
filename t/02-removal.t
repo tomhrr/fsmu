@@ -58,7 +58,7 @@ my $pid;
     my @files;
     find(sub { push @files, $File::Find::name },
          $backing_dir);
-    is(@files, 1,
+    is(@files, 2,
         'No files in backing directory when query directory removed');
 
     # Do two overlapping searches, and confirm removal of one reverts
