@@ -65,9 +65,6 @@ By default, deletion is a no-op.  To have deletion take effect in both
 the query directory and the underlying maildir, pass the
 `--delete-remove` option.
 
-Multithreaded operation is not currently supported, so the `-s` flag
-must be passed when mounting the filesystem.
-
 If a directory name at the top-level is not a valid query, then
 attempting to access that directory will lead to an "operation not
 permitted" error message.

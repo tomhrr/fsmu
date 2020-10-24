@@ -33,7 +33,7 @@ my $pid;
     if ($pid = fork()) {
         sleep(1);
     } else {
-        my $res = system("./fsmu -s --muhome=$muhome ".
+        my $res = system("./fsmu --muhome=$muhome ".
                          "--delete-remove --backing-dir=$backing_dir ".
                          "$mount_dir");
         sleep(3600);
