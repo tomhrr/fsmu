@@ -43,7 +43,7 @@ static const struct fuse_opt option_spec[] = {
 static void verify_path(const char *path)
 {
     if (strlen(path) > PATH_MAX) {
-        syslog(LOG_ERR, "verify_path: '%s' is too long\n", path);
+        syslog(LOG_ERR, "verify_path: '%s' is too long", path);
         abort();
     }
 }
@@ -138,7 +138,7 @@ static int make_backing_path_if_required(const char *backing_path)
         res = mkdir(backing_path, 0755);
         if (res != 0) {
             syslog(LOG_ERR, "make_backing_path_if_required: "
-                            "cannot create '%s': %s\n",
+                            "cannot create '%s': %s",
                    backing_path, strerror(errno));
             return -1;
         }
@@ -153,7 +153,7 @@ static int make_backing_path_if_required(const char *backing_path)
         res = mkdir(backing_path_cur, 0755);
         if (res != 0) {
             syslog(LOG_ERR, "make_backing_path_if_required: "
-                            "cannot create '%s': %s\n",
+                            "cannot create '%s': %s",
                    backing_path_cur, strerror(errno));
             return -1;
         }
@@ -168,7 +168,7 @@ static int make_backing_path_if_required(const char *backing_path)
         res = mkdir(backing_path_new, 0755);
         if (res != 0) {
             syslog(LOG_ERR, "make_backing_path_if_required: "
-                            "cannot create '%s': %s\n",
+                            "cannot create '%s': %s",
                    backing_path_new, strerror(errno));
             return -1;
         }
@@ -355,7 +355,7 @@ static int update_backing_path(const char *backing_path,
 
     DIR *backing_dir_handle = opendir(backing_path);
     if (!backing_dir_handle) {
-        syslog(LOG_ERR, "update_backing_path: cannot open '%s': %s\n",
+        syslog(LOG_ERR, "update_backing_path: cannot open '%s': %s",
                backing_path, strerror(errno));
         return -1;
     }
@@ -393,7 +393,7 @@ static int update_backing_path(const char *backing_path,
             }
             if (len == -1) {
                 syslog(LOG_ERR, "update_backing_path: unable to read "
-                                "link for '%s': %s\n",
+                                "link for '%s': %s",
                        backing_path_ent, strerror(errno));
                 closedir(backing_dir_handle);
                 return -1;
@@ -422,7 +422,7 @@ static int update_backing_path(const char *backing_path,
 
     DIR *temp_dir_handle = opendir(temp_path);
     if (!temp_dir_handle) {
-        syslog(LOG_ERR, "update_backing_path: cannot open '%s': %s\n",
+        syslog(LOG_ERR, "update_backing_path: cannot open '%s': %s",
                temp_path, strerror(errno));
         return -1;
     }
@@ -458,7 +458,7 @@ static int update_backing_path(const char *backing_path,
         }
         if (len == -1) {
             syslog(LOG_ERR, "update_backing_path: unable to read "
-                            "link for '%s': %s\n",
+                            "link for '%s': %s",
                    backing_path_ent, strerror(errno));
             closedir(temp_dir_handle);
             return -1;
@@ -474,13 +474,13 @@ static int update_backing_path(const char *backing_path,
 
 static int refresh_dir(const char *path, int force)
 {
-    syslog(LOG_DEBUG, "refresh_dir: '%s'\n", path);
+    syslog(LOG_DEBUG, "refresh_dir: '%s'", path);
     verify_path(path);
 
     if ((strcmp(path, "/") == 0)
             || (strlen(path) <= 1)
             || (path[1] == '_')) {
-        syslog(LOG_DEBUG, "refresh_dir: '%s' cannot be refreshed\n", path);
+        syslog(LOG_DEBUG, "refresh_dir: '%s' cannot be refreshed", path);
         return 0;
     }
 
@@ -496,7 +496,7 @@ static int refresh_dir(const char *path, int force)
     struct stat stbuf;
     int res = stat(search_path, &stbuf);
     if (res != 0) {
-        syslog(LOG_ERR, "refresh_dir: '%s' cannot be refreshed\n", path);
+        syslog(LOG_ERR, "refresh_dir: '%s' cannot be refreshed", path);
         return -1;
     }
 
@@ -507,7 +507,7 @@ static int refresh_dir(const char *path, int force)
         int threshold = time(NULL) - options.refresh_timeout;
         if (!force && (stbuf.st_mtim.tv_sec > threshold)) {
             syslog(LOG_DEBUG, "refresh_dir: '%s' refreshed "
-                              "less than %ds ago\n", path,
+                              "less than %ds ago", path,
                               options.refresh_timeout);
             return 0;
         }
@@ -515,14 +515,14 @@ static int refresh_dir(const char *path, int force)
         FILE *last_update_file = fopen(last_update_path, "w");
         if (!last_update_file) {
             syslog(LOG_ERR, "refresh_dir: cannot write "
-                            "last-update for '%s': %s\n",
+                            "last-update for '%s': %s",
                             path, strerror(errno));
             return -1;
         }
         res = fclose(last_update_file);
         if (res != 0) {
             syslog(LOG_ERR, "refresh_dir: cannot close "
-                            "last-update for '%s': %s\n",
+                            "last-update for '%s': %s",
                             path, strerror(errno));
             return -1;
         }
@@ -530,7 +530,7 @@ static int refresh_dir(const char *path, int force)
     res = utime(last_update_path, NULL);
     if (res != 0) {
         syslog(LOG_ERR, "refresh_dir: cannot update "
-                        "last-update for '%s': %s\n",
+                        "last-update for '%s': %s",
                         path, strerror(errno));
         return -1;
     }
@@ -541,10 +541,10 @@ static int refresh_dir(const char *path, int force)
                 options.mu,
                 (options.mu_home ? "--muhome=" : ""),
                 (options.mu_home ? options.mu_home : ""));
-        syslog(LOG_INFO, "refresh_dir: running mu index\n");
+        syslog(LOG_INFO, "refresh_dir: running mu index");
         res = system(cmd);
         if (res != 0) {
-            syslog(LOG_ERR, "refresh_dir: mu index failed\n");
+            syslog(LOG_ERR, "refresh_dir: mu index failed");
             return -1;
         }
     }
@@ -567,7 +567,7 @@ static int refresh_dir(const char *path, int force)
     char *temp_dirname = mkdtemp(template);
     if (!temp_dirname) {
         syslog(LOG_ERR, "refresh_dir: unable to make temporary "
-                        "directory (%s): %s\n",
+                        "directory (%s): %s",
                template, strerror(errno));
         return -1;
     }
@@ -578,10 +578,12 @@ static int refresh_dir(const char *path, int force)
             (options.mu_home ? "--muhome=" : ""),
             (options.mu_home ? options.mu_home : ""),
             temp_dirname, query);
-    syslog(LOG_INFO, "refresh_dir: running mu find: '%s'\n", cmd);
+    syslog(LOG_INFO, "refresh_dir: running mu find: '%s'", cmd);
     res = system(cmd);
-    if (res != 0) {
-        syslog(LOG_ERR, "refresh_dir: mu find failed\n");
+    /* 2 is the documented return code for "no results found".  1024
+     * is the return code seen in practice. */
+    if ((res != 0) && (res != 2) && (res != 1024)) {
+        syslog(LOG_ERR, "refresh_dir: mu find failed", res);
         return -1;
     }
 
@@ -644,7 +646,7 @@ static int refresh_dir(const char *path, int force)
 
     DIR *temp_dir_handle = opendir(temp_dirname);
     if (!temp_dir_handle) {
-        syslog(LOG_ERR, "refresh_dir: cannot open '%s': %s\n",
+        syslog(LOG_ERR, "refresh_dir: cannot open '%s': %s",
                temp_dirname, strerror(errno));
         return -1;
     }
@@ -659,7 +661,7 @@ static int refresh_dir(const char *path, int force)
         strcat(path, dent->d_name);
         res = unlink(path);
         if (res != 0) {
-            syslog(LOG_ERR, "refresh_dir: cannot unlink '%s': %s\n",
+            syslog(LOG_ERR, "refresh_dir: cannot unlink '%s': %s",
                    path, strerror(errno));
             closedir(temp_dir_handle);
             return -1;
@@ -680,13 +682,13 @@ static int fsmu_readdir(const char *path, void *buf,
                         fuse_fill_dir_t filler,
                         off_t offset, struct fuse_file_info *info)
 {
-    syslog(LOG_DEBUG, "readdir: '%s'\n", path);
+    syslog(LOG_DEBUG, "readdir: '%s'", path);
     verify_path(path);
 
     if (strcmp(path, "/") == 0) {
         DIR *backing_dir_handle = opendir(options.backing_dir);
         if (!backing_dir_handle) {
-            syslog(LOG_ERR, "readdir: cannot open '%s': %s\n",
+            syslog(LOG_ERR, "readdir: cannot open '%s': %s",
                    path, strerror(errno));
             return -1;
         }
@@ -699,7 +701,7 @@ static int fsmu_readdir(const char *path, void *buf,
         }
         closedir(backing_dir_handle);
 
-        syslog(LOG_DEBUG, "readdir: '%s' completed\n", path);
+        syslog(LOG_DEBUG, "readdir: '%s' completed", path);
         return 0;
     }
 
@@ -715,7 +717,7 @@ static int fsmu_readdir(const char *path, void *buf,
 
     DIR *dir_handle = opendir(backing_path);
     if (!dir_handle) {
-        syslog(LOG_ERR, "readdir: cannot open '%s': %s\n",
+        syslog(LOG_ERR, "readdir: cannot open '%s': %s",
                path, strerror(errno));
         return -1;
     }
@@ -725,20 +727,20 @@ static int fsmu_readdir(const char *path, void *buf,
     }
     closedir(dir_handle);
 
-    syslog(LOG_DEBUG, "readdir: '%s' completed\n", path);
+    syslog(LOG_DEBUG, "readdir: '%s' completed", path);
     return 0;
 }
 
 static int fsmu_getattr(const char *path, struct stat *stbuf)
 {
-    syslog(LOG_DEBUG, "getattr: '%s'\n", path);
+    syslog(LOG_DEBUG, "getattr: '%s'", path);
     verify_path(path);
 
     memset(stbuf, 0, sizeof(struct stat));
     if (strcmp(path, "/") == 0) {
         stbuf->st_mode = S_IFDIR | 0755;
         stbuf->st_nlink = 2;
-        syslog(LOG_DEBUG, "getattr: '%s' completed\n", path);
+        syslog(LOG_DEBUG, "getattr: '%s' completed", path);
         return 0;
     }
 
@@ -753,7 +755,7 @@ static int fsmu_getattr(const char *path, struct stat *stbuf)
         const char *tail = backing_path + len - 4;
         if (   (strcmp(tail, "/cur") == 0)
             || (strcmp(tail, "/new") == 0)) {
-            syslog(LOG_INFO, "getattr: refreshing cur/new path\n", path);
+            syslog(LOG_INFO, "getattr: refreshing cur/new path", path);
             refresh_dir(path, 0);
         }
     }
@@ -768,12 +770,12 @@ static int fsmu_getattr(const char *path, struct stat *stbuf)
 
     res = stat(backing_path, stbuf);
     if (res != 0) {
-        syslog(LOG_ERR, "getattr: unable to stat '%s': %s\n",
+        syslog(LOG_ERR, "getattr: unable to stat '%s': %s",
                path, strerror(errno));
         return -1 * errno;
     }
 
-    syslog(LOG_DEBUG, "getattr: '%s' completed\n", path);
+    syslog(LOG_DEBUG, "getattr: '%s' completed", path);
     return res;
 }
 
@@ -794,7 +796,7 @@ static int update_link_mapping(const char *maildir_path,
 
     DIR *reverse_handle = opendir(reverse_path);
     if (!reverse_handle) {
-        syslog(LOG_ERR, "update_link_mapping: cannot open '%s': %s\n",
+        syslog(LOG_ERR, "update_link_mapping: cannot open '%s': %s",
                reverse_path, strerror(errno));
         return -1;
     }
@@ -808,7 +810,7 @@ static int update_link_mapping(const char *maildir_path,
         strcat(search_path, dent->d_name);
         DIR *search_dir_handle = opendir(search_path);
         if (!search_dir_handle) {
-            syslog(LOG_ERR, "update_link_mapping: cannot open search path '%s': %s\n",
+            syslog(LOG_ERR, "update_link_mapping: cannot open search path '%s': %s",
                    search_path, strerror(errno));
             closedir(reverse_handle);
             return -1;
@@ -823,7 +825,7 @@ static int update_link_mapping(const char *maildir_path,
             strcat(type_path, dent_search->d_name);
             DIR *type_dir_handle = opendir(type_path);
             if (!type_dir_handle) {
-                syslog(LOG_ERR, "update_link_mapping: cannot open type path '%s': %s\n",
+                syslog(LOG_ERR, "update_link_mapping: cannot open type path '%s': %s",
                        type_path, strerror(errno));
                 closedir(search_dir_handle);
                 closedir(reverse_handle);
@@ -841,7 +843,7 @@ static int update_link_mapping(const char *maildir_path,
 
                 ssize_t len = readlink(reverse_path_full, backing_path, PATH_MAX);
                 if (len == PATH_MAX) {
-                    syslog(LOG_ERR, "update_link_mapping: too much path data for '%s'\n",
+                    syslog(LOG_ERR, "update_link_mapping: too much path data for '%s'",
                            reverse_path_full);
                     closedir(type_dir_handle);
                     closedir(search_dir_handle);
@@ -849,7 +851,7 @@ static int update_link_mapping(const char *maildir_path,
                     return -1;
                 }
                 if (len == -1) {
-                    syslog(LOG_ERR, "update_link_mapping: unable to read link for '%s': %s\n",
+                    syslog(LOG_ERR, "update_link_mapping: unable to read link for '%s': %s",
                            reverse_path_full, strerror(errno));
                     closedir(type_dir_handle);
                     closedir(search_dir_handle);
@@ -947,7 +949,7 @@ static int update_link_mapping(const char *maildir_path,
                 res = symlink(new_maildir_path, backing_path_new);
                 if (res != 0) {
                     syslog(LOG_ERR, "update_link_mapping: unable to "
-                                    "relink backing path '%s': %s\n",
+                                    "relink backing path '%s': %s",
                            backing_path_new, strerror(errno));
                     closedir(type_dir_handle);
                     closedir(search_dir_handle);
@@ -997,7 +999,7 @@ static int equal_to_flags(const char *path1, const char *path2)
 
 static int fsmu_rename(const char *from, const char *to)
 {
-    syslog(LOG_DEBUG, "rename: '%s' to '%s'\n", from, to);
+    syslog(LOG_DEBUG, "rename: '%s' to '%s'", from, to);
     verify_path(from);
     verify_path(to);
 
@@ -1011,34 +1013,34 @@ static int fsmu_rename(const char *from, const char *to)
     }
 
     if (from == to) {
-        syslog(LOG_DEBUG, "rename: '%s' is the same as '%s'\n", from, to);
+        syslog(LOG_DEBUG, "rename: '%s' is the same as '%s'", from, to);
         return 0;
     }
 
     char from_dir[PATH_MAX];
     int res = dirname(from, from_dir);
     if (res != 0) {
-        syslog(LOG_ERR, "rename: unable to get directory for '%s'\n", from);
+        syslog(LOG_ERR, "rename: unable to get directory for '%s'", from);
         return -1;
     }
     char to_dir[PATH_MAX];
     res = dirname(to, to_dir);
     if (res != 0) {
-        syslog(LOG_ERR, "rename: unable to get directory for '%s'\n", to);
+        syslog(LOG_ERR, "rename: unable to get directory for '%s'", to);
         return -1;
     }
 
     char from_dir_next[PATH_MAX];
     res = dirname(from_dir, from_dir_next);
     if (res != 0) {
-        syslog(LOG_ERR, "rename: unable to get directory for '%s'\n",
+        syslog(LOG_ERR, "rename: unable to get directory for '%s'",
                from_dir);
         return -1;
     }
     char to_dir_next[PATH_MAX];
     res = dirname(to_dir, to_dir_next);
     if (res != 0) {
-        syslog(LOG_ERR, "rename: unable to get directory for '%s'\n",
+        syslog(LOG_ERR, "rename: unable to get directory for '%s'",
                to_dir);
         return -1;
     }
@@ -1046,7 +1048,7 @@ static int fsmu_rename(const char *from, const char *to)
     res = strcmp(from_dir_next, to_dir_next);
     if (res != 0) {
         syslog(LOG_ERR, "rename: directories do not match: "
-                        "'%s' and '%s'\n", from_dir_next,
+                        "'%s' and '%s'", from_dir_next,
                         to_dir_next);
         return -1;
     }
@@ -1054,7 +1056,7 @@ static int fsmu_rename(const char *from, const char *to)
     char to_dir_next_single[PATH_MAX];
     res = basename(to_dir, to_dir_next_single);
     if (res != 0) {
-        syslog(LOG_ERR, "rename: unable to get basename from '%s'\n",
+        syslog(LOG_ERR, "rename: unable to get basename from '%s'",
                to_dir);
         return -1;
     }
@@ -1062,7 +1064,7 @@ static int fsmu_rename(const char *from, const char *to)
     char to_basename[PATH_MAX];
     res = basename(to, to_basename);
     if (res != 0) {
-        syslog(LOG_ERR, "rename: unable to get basename from '%s'\n",
+        syslog(LOG_ERR, "rename: unable to get basename from '%s'",
                to);
         return -1;
     }
@@ -1070,19 +1072,19 @@ static int fsmu_rename(const char *from, const char *to)
     char from_backing_path[PATH_MAX];
     res = resolve_path(from, from_backing_path);
     if (res != 0) {
-        syslog(LOG_ERR, "rename: unable to resolve '%s'\n", from);
+        syslog(LOG_ERR, "rename: unable to resolve '%s'", from);
         return -1;
     }
 
     char from_maildir_path[PATH_MAX];
     ssize_t len = readlink(from_backing_path, from_maildir_path, PATH_MAX);
     if (len == PATH_MAX) {
-        syslog(LOG_ERR, "rename: too much path data for '%s'\n",
+        syslog(LOG_ERR, "rename: too much path data for '%s'",
                from_backing_path);
         return -1;
     }
     if (len == -1) {
-        syslog(LOG_ERR, "rename: unable to read link for '%s': %s\n",
+        syslog(LOG_ERR, "rename: unable to read link for '%s': %s",
                from_backing_path, strerror(errno));
         return -1;
     }
@@ -1091,7 +1093,7 @@ static int fsmu_rename(const char *from, const char *to)
     char maildir_basename[PATH_MAX];
     res = basename(from_maildir_path, maildir_basename);
     if (res != 0) {
-        syslog(LOG_ERR, "rename: unable to get basename for '%s'\n",
+        syslog(LOG_ERR, "rename: unable to get basename for '%s'",
                from_maildir_path);
         return -1;
     }
@@ -1100,13 +1102,13 @@ static int fsmu_rename(const char *from, const char *to)
     char to_maildir_path[PATH_MAX];
     res = dirname(from_maildir_path, from_maildir_dir);
     if (res != 0) {
-        syslog(LOG_ERR, "rename: unable to get directory for '%s'\n",
+        syslog(LOG_ERR, "rename: unable to get directory for '%s'",
                from_maildir_path);
         return -1;
     }
     res = dirname(from_maildir_dir, to_maildir_path);
     if (res != 0) {
-        syslog(LOG_ERR, "rename: unable to get directory for '%s'\n",
+        syslog(LOG_ERR, "rename: unable to get directory for '%s'",
                from_maildir_dir);
         return -1;
     }
@@ -1131,7 +1133,7 @@ static int fsmu_rename(const char *from, const char *to)
 
     res = rename(from_maildir_path, to_maildir_path);
     if (res != 0) {
-        syslog(LOG_ERR, "rename: unable to rename '%s' to '%s': %s\n",
+        syslog(LOG_ERR, "rename: unable to rename '%s' to '%s': %s",
                from_maildir_path, to_maildir_path,
                strerror(errno));
         return -1;
@@ -1140,26 +1142,26 @@ static int fsmu_rename(const char *from, const char *to)
     res = update_link_mapping(from_maildir_path, to_maildir_path,
                               to_dir_next_single, to_basename, flags);
     if (res != 0) {
-        syslog(LOG_ERR, "rename: ulm failed: %s\n",
+        syslog(LOG_ERR, "rename: ulm failed: %s",
                strerror(errno));
         return -1;
     }
 
-    syslog(LOG_DEBUG, "rename: '%s' to '%s' completed\n", from, to);
+    syslog(LOG_DEBUG, "rename: '%s' to '%s' completed", from, to);
     return 0;
 }
 
 static int fsmu_read(const char *path, char *buf, size_t size,
                      off_t offset, struct fuse_file_info *info)
 {
-    syslog(LOG_DEBUG, "read: '%s'\n", path);
+    syslog(LOG_DEBUG, "read: '%s'", path);
     verify_path(path);
 
     int len = strlen(path);
     if (len >= 9) {
         const char *tail = path + len - 9;
         if (strcmp(tail, "/.refresh") == 0) {
-            syslog(LOG_INFO, "getattr: forcibly refreshing path\n", path);
+            syslog(LOG_INFO, "getattr: forcibly refreshing path", path);
             refresh_dir(path, 1);
             return 0;
         }
@@ -1168,20 +1170,20 @@ static int fsmu_read(const char *path, char *buf, size_t size,
     char backing_path[PATH_MAX];
     int res = resolve_path(path, backing_path);
     if (res != 0) {
-        syslog(LOG_ERR, "read: unable to resolve '%s'\n", path);
+        syslog(LOG_ERR, "read: unable to resolve '%s'", path);
         return -1;
     }
 
     FILE *backing_file = fopen(backing_path, "r");
     if (!backing_file) {
-        syslog(LOG_ERR, "read: unable to open '%s': %s\n", path,
+        syslog(LOG_ERR, "read: unable to open '%s': %s", path,
                strerror(errno));
         return -1;
     }
 
     res = fseek(backing_file, offset, SEEK_SET);
     if (res != 0) {
-        syslog(LOG_ERR, "read: '%s': failed to seek: %s\n",
+        syslog(LOG_ERR, "read: '%s': failed to seek: %s",
                path, strerror(errno));
         return res;
     }
@@ -1189,18 +1191,18 @@ static int fsmu_read(const char *path, char *buf, size_t size,
     size_t bytes = fread(buf, 1, size, backing_file);
     res = fclose(backing_file);
     if (res != 0) {
-        syslog(LOG_ERR, "read: '%s': failed to close: %s\n",
+        syslog(LOG_ERR, "read: '%s': failed to close: %s",
                path, strerror(errno));
         return res;
     }
 
-    syslog(LOG_DEBUG, "read: '%s' completed\n", path);
+    syslog(LOG_DEBUG, "read: '%s' completed", path);
     return bytes;
 }
 
 static int fsmu_mkdir(const char *path, mode_t mode)
 {
-    syslog(LOG_DEBUG, "mkdir: '%s'\n", path);
+    syslog(LOG_DEBUG, "mkdir: '%s'", path);
     verify_path(path);
 
     char backing_path[PATH_MAX];
@@ -1210,22 +1212,22 @@ static int fsmu_mkdir(const char *path, mode_t mode)
     }
     res = mkdir(backing_path, mode);
     if (res != 0) {
-        syslog(LOG_ERR, "mkdir: '%s': failed: %s\n",
+        syslog(LOG_ERR, "mkdir: '%s': failed: %s",
                path, strerror(errno));
         return -1 * errno;
     }
 
-    syslog(LOG_DEBUG, "mkdir: '%s' completed\n", path);
+    syslog(LOG_DEBUG, "mkdir: '%s' completed", path);
     return 0;
 }
 
 static int fsmu_rmdir(const char *path)
 {
-    syslog(LOG_DEBUG, "rmdir: '%s'\n", path);
+    syslog(LOG_DEBUG, "rmdir: '%s'", path);
     verify_path(path);
 
     if (strchr(path + 1, '/') != NULL) {
-        syslog(LOG_ERR, "rmdir: cannot remove nested directory '%s'\n",
+        syslog(LOG_ERR, "rmdir: cannot remove nested directory '%s'",
                path);
         return -1;
     }
@@ -1234,7 +1236,7 @@ static int fsmu_rmdir(const char *path)
     sprintf(real_path, "%s%s", options.backing_dir, path);
     int res = rmdir(real_path);
     if (res != 0) {
-        syslog(LOG_ERR, "rmdir: '%s': failed: %s\n",
+        syslog(LOG_ERR, "rmdir: '%s': failed: %s",
                path, strerror(errno));
         return -1 * errno;
     }
@@ -1243,7 +1245,7 @@ static int fsmu_rmdir(const char *path)
     res = unlink(real_path);
     if (res != 0) {
         syslog(LOG_INFO, "rmdir: '%s': unable to remove "
-                         "last-update file: %s\n",
+                         "last-update file: %s",
                path, strerror(errno));
     }
 
@@ -1252,7 +1254,7 @@ static int fsmu_rmdir(const char *path)
     sprintf(backing_path, "%s/_%s/cur", options.backing_dir, path);
     DIR *backing_handle = opendir(backing_path);
     if (!backing_handle) {
-        syslog(LOG_ERR, "rmdir: cannot open '%s': %s\n",
+        syslog(LOG_ERR, "rmdir: cannot open '%s': %s",
                backing_path, strerror(errno));
         return -1;
     }
@@ -1269,13 +1271,13 @@ static int fsmu_rmdir(const char *path)
         char maildir_path[PATH_MAX];
         ssize_t len = readlink(backing_file, maildir_path, PATH_MAX);
         if (len == PATH_MAX) {
-            syslog(LOG_ERR, "rmdir: too much path data for '%s'\n",
+            syslog(LOG_ERR, "rmdir: too much path data for '%s'",
                 backing_file);
             closedir(backing_handle);
             return -1;
         }
         if (len == -1) {
-            syslog(LOG_ERR, "rmdir: unable to read link for '%s': %s\n",
+            syslog(LOG_ERR, "rmdir: unable to read link for '%s': %s",
                 backing_file, strerror(errno));
             closedir(backing_handle);
             return -1;
@@ -1306,7 +1308,7 @@ static int fsmu_rmdir(const char *path)
     sprintf(backing_path, "%s/_%s/new", options.backing_dir, path);
     backing_handle = opendir(backing_path);
     if (!backing_handle) {
-        syslog(LOG_ERR, "rmdir: cannot open '%s': %s\n",
+        syslog(LOG_ERR, "rmdir: cannot open '%s': %s",
                backing_path, strerror(errno));
         return -1;
     }
@@ -1322,13 +1324,13 @@ static int fsmu_rmdir(const char *path)
         char maildir_path[PATH_MAX];
         ssize_t len = readlink(backing_file, maildir_path, PATH_MAX);
         if (len == PATH_MAX) {
-            syslog(LOG_ERR, "rmdir: too much path data for '%s'\n",
+            syslog(LOG_ERR, "rmdir: too much path data for '%s'",
                    backing_file);
             closedir(backing_handle);
             return -1;
         }
         if (len == -1) {
-            syslog(LOG_ERR, "rmdir: unable to read link for '%s': %s\n",
+            syslog(LOG_ERR, "rmdir: unable to read link for '%s': %s",
                    backing_file, strerror(errno));
             closedir(backing_handle);
             return -1;
@@ -1363,24 +1365,24 @@ static int fsmu_rmdir(const char *path)
         return -1;
     }
 
-    syslog(LOG_DEBUG, "rmdir: '%s' completed\n", path);
+    syslog(LOG_DEBUG, "rmdir: '%s' completed", path);
     return 0;
 }
 
 static int fsmu_unlink(const char *path)
 {
-    syslog(LOG_DEBUG, "unlink: '%s'\n", path);
+    syslog(LOG_DEBUG, "unlink: '%s'", path);
     verify_path(path);
 
     if (!options.delete_remove) {
-        syslog(LOG_DEBUG, "unlink: --delete-remove not set, returning\n");
+        syslog(LOG_DEBUG, "unlink: --delete-remove not set, returning");
         return 0;
     }
 
     char backing_path[PATH_MAX];
     int res = resolve_path(path, backing_path);
     if (res != 0) {
-        syslog(LOG_ERR, "unlink: unable to resolve '%s'\n",
+        syslog(LOG_ERR, "unlink: unable to resolve '%s'",
                path);
         return -1;
     }
@@ -1388,12 +1390,12 @@ static int fsmu_unlink(const char *path)
     char maildir_path[PATH_MAX];
     ssize_t len = readlink(backing_path, maildir_path, PATH_MAX);
     if (len == PATH_MAX) {
-        syslog(LOG_ERR, "unlink: too much path data for '%s'\n",
+        syslog(LOG_ERR, "unlink: too much path data for '%s'",
                backing_path);
         return -1;
     }
     if (len == -1) {
-        syslog(LOG_ERR, "unlink: unable to read link for '%s': %s\n",
+        syslog(LOG_ERR, "unlink: unable to read link for '%s': %s",
                backing_path, strerror(errno));
         return -1;
     }
@@ -1401,18 +1403,18 @@ static int fsmu_unlink(const char *path)
 
     res = unlink(maildir_path);
     if (res != 0) {
-        syslog(LOG_ERR, "unlink: '%s': unable to remove: %s\n",
+        syslog(LOG_ERR, "unlink: '%s': unable to remove: %s",
                maildir_path, strerror(errno));
         return -1;
     }
     res = unlink(backing_path);
     if (res != 0) {
-        syslog(LOG_ERR, "unlink: '%s': unable to remove: %s\n",
+        syslog(LOG_ERR, "unlink: '%s': unable to remove: %s",
                backing_path, strerror(errno));
         return -1;
     }
 
-    syslog(LOG_DEBUG, "unlink: '%s' completed\n", path);
+    syslog(LOG_DEBUG, "unlink: '%s' completed", path);
     return 0;
 }
 
