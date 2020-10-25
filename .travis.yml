@@ -12,6 +12,8 @@ addons:
     - libfile-temp-perl
     - libautodie-perl
     - libproc-processtable-perl
+    - libmime-tools-perl
+    - libsys-hostname-long-perl
 script: make && make test
 notifications:
   email:

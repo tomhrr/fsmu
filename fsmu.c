@@ -583,7 +583,7 @@ static int refresh_dir(const char *path, int force)
     /* 2 is the documented return code for "no results found".  1024
      * is the return code seen in practice. */
     if ((res != 0) && (res != 2) && (res != 1024)) {
-        syslog(LOG_ERR, "refresh_dir: mu find failed", res);
+        syslog(LOG_ERR, "refresh_dir: mu find failed");
         return -1;
     }
 
@@ -755,7 +755,7 @@ static int fsmu_getattr(const char *path, struct stat *stbuf)
         const char *tail = backing_path + len - 4;
         if (   (strcmp(tail, "/cur") == 0)
             || (strcmp(tail, "/new") == 0)) {
-            syslog(LOG_INFO, "getattr: refreshing cur/new path", path);
+            syslog(LOG_INFO, "getattr: refreshing cur/new path");
             refresh_dir(path, 0);
         }
     }
@@ -1161,7 +1161,7 @@ static int fsmu_read(const char *path, char *buf, size_t size,
     if (len >= 9) {
         const char *tail = path + len - 9;
         if (strcmp(tail, "/.refresh") == 0) {
-            syslog(LOG_INFO, "getattr: forcibly refreshing path", path);
+            syslog(LOG_INFO, "getattr: forcibly refreshing path");
             refresh_dir(path, 1);
             return 0;
         }
