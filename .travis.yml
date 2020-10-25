@@ -1,6 +1,4 @@
 sudo: required
-services:
-  - docker
 language: c
 compiler: gcc
 addons:
@@ -15,7 +13,7 @@ addons:
     - libmime-tools-perl
     - libsys-hostname-long-perl
     - maildir-utils
-script: make && make test
+script: mu --version && make && make test
 notifications:
   email:
     recipients:
