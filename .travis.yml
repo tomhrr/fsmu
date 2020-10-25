@@ -1,0 +1,16 @@
+sudo: required
+services:
+  - docker
+language: c
+compiler: gcc
+addons:
+  apt:
+    packages:
+    - libfuse-dev
+script: make && make test
+notifications:
+  email:
+    recipients:
+    - tomh5908@gmail.com
+  on_success: never
+  on_failure: change
