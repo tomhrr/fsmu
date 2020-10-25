@@ -1,5 +1,7 @@
 ## fsmu
 
+[![Build Status](https://travis-ci.org/tomhrr/dale.svg?branch=master)](https://travis-ci.org/tomhrr/dale)
+
 A virtual maildir filesystem for [`mu`](https://github.com/djcb/mu)
 queries.  Create directories with names that are `mu` queries, and
 those directories will be populated with the query results on
@@ -9,6 +11,7 @@ retrieval.  Movement of mail within the search directory (e.g. from
 ### Dependencies
 
   * [FUSE](https://github.com/libfuse/libfuse)
+  * [`mu`](https://github.com/djcb/mu) (>= 1.2.0)
 
 ### Install
 
