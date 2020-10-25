@@ -19,7 +19,6 @@ static struct options {
     const char *backing_dir;
     const char *mu_home;
     const char *mu;
-    int enable_indexing;
     int refresh_timeout;
     int delete_remove;
     int help;
@@ -33,7 +32,6 @@ static const struct fuse_opt option_spec[] = {
     OPTION("--backing-dir=%s", backing_dir),
     OPTION("--muhome=%s", mu_home),
     OPTION("--mu=%s", mu),
-    OPTION("--enable-indexing", enable_indexing),
     OPTION("--refresh-timeout", refresh_timeout),
     OPTION("--delete-remove", delete_remove),
     OPTION("--help", help),
@@ -535,20 +533,6 @@ static int refresh_dir(const char *path, int force)
         return -1;
     }
 
-    char cmd[4 * PATH_MAX];
-    if (options.enable_indexing) {
-        sprintf(cmd, "%s index %s%s",
-                options.mu,
-                (options.mu_home ? "--muhome=" : ""),
-                (options.mu_home ? options.mu_home : ""));
-        syslog(LOG_INFO, "refresh_dir: running mu index");
-        res = system(cmd);
-        if (res != 0) {
-            syslog(LOG_ERR, "refresh_dir: mu index failed");
-            return -1;
-        }
-    }
-
     char query[PATH_MAX];
     strcpy(query, root_dirname + 1);
     char backing_path[PATH_MAX];
@@ -572,6 +556,7 @@ static int refresh_dir(const char *path, int force)
         return -1;
     }
 
+    char cmd[4 * PATH_MAX];
     sprintf(cmd, "%s find %s%s --clearlinks --format=links "
                  "--linksdir='%s' '%s'",
             options.mu,
@@ -1440,8 +1425,6 @@ static void usage(const char *progname)
            "    --refresh-timeout=<d>   Do not perform search again if\n"
            "                            requested within <d> seconds\n"
            "                            (default: 30)\n"
-           "    --enable-indexing       Whether to index before searching\n"
-           "                            (default: false)\n"
            "    --delete-remove         Whether deletions should take\n"
            "                            effect (default: false)\n"
            "    --mu=<s>                Path to mu executable\n"
