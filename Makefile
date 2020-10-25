@@ -8,7 +8,7 @@ clean:
 	rm -f *.o fsmu
 
 fsmu: fsmu.c
-	gcc `pkg-config fuse --cflags` fsmu.c `pkg-config fuse --libs` -o fsmu
+	gcc -O2 `pkg-config fuse --cflags` fsmu.c `pkg-config fuse --libs` -o fsmu
 
 test: fsmu
 	prove t/*.t
