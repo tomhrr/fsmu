@@ -96,11 +96,11 @@ sub mu_init
     my $muhome = tempdir(UNLINK => 1);
     my $args = "--muhome=$muhome";
     my $args2 = "$args --maildir=$dir";
-    my $res = system("mu init $args2 >/dev/null 2>&1");
+    my $res = system("mu init $args2");
     if ($res != 0) {
         die "Unable to run mu init";
     }
-    $res = system("mu index $args >/dev/null 2>&1");
+    $res = system("mu index $args");
     if ($res != 0) {
         die "Unable to run mu index";
     }
