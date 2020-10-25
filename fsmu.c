@@ -918,7 +918,7 @@ static int update_link_mapping(const char *maildir_path,
                 strcat(backing_path_new, "/");
 
                 if (!flags) {
-                    strncat(backing_path_new, basename_new, PATH_MAX);
+                    strcat(backing_path_new, basename_new);
                 } else {
                     char filename[PATH_MAX];
                     res = basename(backing_path, filename);
@@ -930,11 +930,11 @@ static int update_link_mapping(const char *maildir_path,
                     }
                     char *to_flags = strrchr(filename, ':');
                     if (!to_flags) {
-                        strncat(backing_path_new, filename, PATH_MAX);
-                        strncat(backing_path_new, flags, PATH_MAX);
+                        strcat(backing_path_new, filename);
+                        strcat(backing_path_new, flags);
                     } else {
                         strcpy(to_flags, flags);
-                        strncat(backing_path_new, filename, PATH_MAX);
+                        strcat(backing_path_new, filename);
                     }
                 }
 
@@ -1114,18 +1114,18 @@ static int fsmu_rename(const char *from, const char *to)
     }
 
     strcat(to_maildir_path, "/");
-    strncat(to_maildir_path, to_dir_next_single, PATH_MAX);
+    strcat(to_maildir_path, to_dir_next_single);
     strcat(to_maildir_path, "/");
     if (!flags) {
-        strncat(to_maildir_path, to_basename, PATH_MAX);
+        strcat(to_maildir_path, to_basename);
     } else {
         char *to_flags = strrchr(maildir_basename, ':');
         if (!to_flags) {
-            strncat(to_maildir_path, maildir_basename, PATH_MAX);
-            strncat(to_maildir_path, flags, PATH_MAX);
+            strcat(to_maildir_path, maildir_basename);
+            strcat(to_maildir_path, flags);
         } else {
             strcpy(to_flags, flags);
-            strncat(to_maildir_path, maildir_basename, PATH_MAX);
+            strcat(to_maildir_path, maildir_basename);
         }
     }
     syslog(LOG_DEBUG, "rename: maildir paths: (%s) -> (%s)",
