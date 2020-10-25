@@ -1,7 +1,11 @@
 sudo: required
-dist: focal
 language: c
 compiler: gcc
+matrix:
+  include:
+    - dist: focal
+    - dist: bionic
+    - dist: xenial
 addons:
   apt:
     packages:
