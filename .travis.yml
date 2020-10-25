@@ -7,6 +7,11 @@ addons:
   apt:
     packages:
     - libfuse-dev
+    - libfile-slurp-perl
+    - libdigest-md5-perl
+    - libfile-temp-perl
+    - libautodie-perl
+    - libproc-processtable-perl
 script: make && make test
 notifications:
   email:
