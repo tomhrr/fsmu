@@ -98,7 +98,7 @@ sub mu_init
     my $args2 = "$args --maildir=$dir";
     my $res = system("mu init $args2");
     if ($res != 0) {
-        die "Unable to run mu init";
+        warn "Unable to run mu init";
     }
     $res = system("mu index $args");
     if ($res != 0) {
