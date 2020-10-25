@@ -17,25 +17,21 @@ use File::Spec::Functions qw(no_upwards);
 use File::Temp qw(tempdir);
 use List::Util qw(first);
 
-use Test::More;
+use Test::More tests => 13;
 
 my $mount_dir;
 my $top_pid = $$;
 my $pid;
 my @pids;
 
-if ($ENV{'FSMU_DEBUG'}) {
-    plan tests => 13;
-} else {
-    plan skip_all => 'FSMU_DEBUG not set';
-}
-
 sub debug
 {
     my (@data) = @_;
 
-    for my $d (@data) {
-        print STDERR "$$: $d\n";
+    if ($ENV{'FSMU_DEBUG'}) {
+        for my $d (@data) {
+            print STDERR "$$: $d\n";
+        }
     }
 
     return 1;
@@ -43,10 +39,9 @@ sub debug
 
 {
     my $dir = make_root_maildir();
-    my $muhome = mu_init($dir);
+    my ($muhome, $refresh_cmd) = mu_init($dir);
     my $backing_dir = tempdir(UNLINK => 1);
     $mount_dir = tempdir(UNLINK => 1);
-    my $refresh_cmd = "mu index --muhome=$muhome >/dev/null";
     if ($pid = fork()) {
         sleep(1);
     } else {
@@ -114,7 +109,9 @@ sub debug
             $file = $dir.'/'.$files[int(rand(@files))];
         };
         if (my $error = $@) {
-            warn $error;
+            if ($error !~ /No such file or directory/) {
+                warn $error;
+            }
             return;
         }
         return "$query_dir/$file";

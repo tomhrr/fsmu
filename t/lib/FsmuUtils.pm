@@ -93,19 +93,34 @@ sub mu_init
 {
     my ($dir) = @_;
 
-    my $muhome = tempdir(UNLINK => 1);
-    my $args = "--muhome=$muhome";
-    my $args2 = "$args --maildir=$dir";
-    my $res = system("mu init $args2");
-    if ($res != 0) {
-        die "Unable to run mu init";
-    }
-    $res = system("mu index $args");
-    if ($res != 0) {
-        die "Unable to run mu index";
-    }
+    my @lines = `mu --version`;
+    my $version_line = $lines[0];
+    chomp $version_line;
+    my ($version) = ($version_line =~ /.* ([\d\.]+)$/);
+    print STDERR "Using mu version '$version'\n";
 
-    return $muhome;
+    my $muhome = tempdir(UNLINK => 1);
+    if ($version ge "1.4") {
+        my $args = "--muhome=$muhome";
+        my $args2 = "$args --maildir=$dir";
+        my $res = system("mu init $args2 >/dev/null");
+        if ($res != 0) {
+            die "Unable to run mu init";
+        }
+        $res = system("mu index $args >/dev/null");
+        if ($res != 0) {
+            die "Unable to run mu index";
+        }
+        return ($muhome, "mu index --muhome=$muhome >/dev/null");
+    } else {
+        my $args = "--muhome=$muhome";
+        my $args2 = "$args --maildir=$dir";
+        my $res = system("mu index $args2 >/dev/null");
+        if ($res != 0) {
+            die "Unable to run mu index";
+        }
+        return ($muhome, "mu index $args2 >/dev/null");
+    }
 }
 
 sub mu_cmd

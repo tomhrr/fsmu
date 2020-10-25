@@ -27,10 +27,9 @@ my $pid;
     like($help[0], qr/^usage/, 'Got help details');
 
     my $dir = make_root_maildir();
-    my $muhome = mu_init($dir);
+    my ($muhome, $refresh_cmd) = mu_init($dir);
     my $backing_dir = tempdir(UNLINK => 1);
     $mount_dir = tempdir(UNLINK => 1);
-    my $refresh_cmd = "mu index --muhome=$muhome >/dev/null";
     if ($pid = fork()) {
         sleep(1);
     } else {
