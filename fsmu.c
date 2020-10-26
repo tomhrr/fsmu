@@ -273,7 +273,7 @@ static int get_reverse_path(const char *maildir_path,
 }
 
 /* Add a link mapping for the maildir path and backing path pair (i.e.
- * a link from the reverse path for this pair to the backing path). */ 
+ * a link from the reverse path for this pair to the backing path). */
 static int add_link_mapping(const char *maildir_path,
                             const char *backing_path)
 {
@@ -314,23 +314,35 @@ static int remove_link_mapping(const char *maildir_path,
     int res = get_reverse_path(maildir_path, backing_path,
                                reverse_path);
     if (res != 0) {
+        syslog(LOG_ERR, "remove_link_mapping: "
+                        "can't get reverse path for '%s', '%s'",
+               maildir_path, backing_path);
         return -1;
     }
 
     res = unlink(reverse_path);
     if (res != 0) {
+        syslog(LOG_ERR, "remove_link_mapping: "
+                        "can't delete reverse path '%s': %s",
+               reverse_path, strerror(errno));
         return -1;
     }
     char *last_slash = strrchr(reverse_path, '/');
     *last_slash = 0;
     res = rmdir(reverse_path);
     if (res != 0) {
+        syslog(LOG_ERR, "remove_link_mapping: "
+                        "can't remove directory '%s': %s",
+               reverse_path, strerror(errno));
         return -1;
     }
     last_slash = strrchr(reverse_path, '/');
     *last_slash = 0;
     res = rmdir(reverse_path);
     if (res != 0) {
+        syslog(LOG_ERR, "remove_link_mapping: "
+                        "can't remove directory '%s': %s",
+               reverse_path, strerror(errno));
         return -1;
     }
 
@@ -366,6 +378,9 @@ static int remove_link_mapping(const char *maildir_path,
         }
         res = rmdir(reverse_path);
         if (res != 0) {
+            syslog(LOG_ERR, "remove_link_mapping: "
+                            "can't remove top level '%s': %s",
+                   reverse_path, strerror(errno));
             return -1;
         }
     }
@@ -428,7 +443,7 @@ static int update_backing_dir(const char *backing_dir,
             }
             maildir_path[len] = 0;
 
-            res = remove_link_mapping(maildir_path, backing_dir);
+            res = remove_link_mapping(maildir_path, backing_dir_ent);
             if (res != 0) {
                 syslog(LOG_ERR, "update_backing_dir: unable "
                                 "to remove link mapping");
