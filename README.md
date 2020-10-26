@@ -61,11 +61,8 @@ seconds.  This value can be changed by way of the `--refresh-timeout`
 option.  A query directory can be forcibly refreshed by attempting to
 read a file named `.refresh` at the top-level of the query directory.
 
-By default, indexing is not performed before querying.  This can be
-enabled by way of the `--enable-indexing` option.
-
-By default, deletion is a no-op.  To have deletion take effect in both
-the query directory and the underlying maildir, pass the
+By default, deletion is not supported.  To have deletion take effect
+in both the query directory and the underlying maildir, pass the
 `--delete-remove` option.
 
 If a directory name at the top-level is not a valid query, then
