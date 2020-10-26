@@ -46,7 +46,8 @@ my $pid;
         die "Unable to find fsmu process";
     }
 
-    # Query for all of the messages.
+    # Query for all of the messages, and then print out the amount of
+    # memory required by the fsmu process.
 
     my $query_dir = $mount_dir.'/data';
     mkdir $query_dir;

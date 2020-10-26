@@ -300,8 +300,11 @@ sub debug
     }
 
     sleep(2);
-    ok(1, 'Operations completed successfully');
+    ok(1, 'Operations completed');
 
+    # As a proxy for confirming that the operations were all handled
+    # correctly (regardless of whether they succeeded or failed),
+    # confirm that the set of reverse paths is correct.
     my @paths;
     find(sub {
         if ((-f $File::Find::name)
@@ -342,10 +345,6 @@ sub debug
     ok((not $not_exists), 'All reverse paths map to real files');
     my $res = ok((not keys %path_lookup),
         'All real files map to reverse paths');
-    if (not $res) {
-        use Data::Dumper;
-        print Dumper(\%path_lookup);
-    }
 }
 
 END {

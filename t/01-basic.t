@@ -17,10 +17,46 @@ use File::Slurp qw(read_file);
 use File::Temp qw(tempdir);
 use List::Util qw(first);
 
-use Test::More tests => 34;
+use Test::More tests => 32;
 
 my $mount_dir;
 my $pid;
+
+sub get_md5
+{
+    my ($path) = @_;
+    open my $fh, '<', $path;
+    my $md5 = Digest::MD5->new();
+    my $ctx = $md5->addfile($fh);
+    my $digest = $ctx->hexdigest();
+    close $fh;
+    return $digest;
+}
+
+sub get_maildir_path
+{
+    my ($dir, $query_dir_path) = @_;
+    my $basename = basename($query_dir_path);
+    $basename =~ s/^\d+_//;
+    my $md5 = get_md5($query_dir_path);
+    my @matches;
+    find(sub {
+        my $path = $File::Find::name;
+        if (-f $path) {
+            my $path_md5 = get_md5($path);
+            if ($md5 eq $path_md5) {
+                push @matches, $path;
+            }
+        }
+    }, $dir);
+    if (@matches > 1) {
+        @matches = grep { /$basename/ } @matches;
+    }
+    if (@matches > 1) {
+        die "Multiple matches found";
+    }
+    return $matches[0];
+}
 
 {
     my @help = `./fsmu --help`;
@@ -40,40 +76,6 @@ my $pid;
         exit();
     }
 
-    my $get_md5 = sub {
-        my ($path) = @_;
-        open my $fh, '<', $path;
-        my $md5 = Digest::MD5->new();
-        my $ctx = $md5->addfile($fh);
-        my $digest = $ctx->hexdigest();
-        close $fh;
-        return $digest;
-    };
-
-    my $get_maildir_path = sub {
-        my ($query_dir_path) = @_;
-        my $basename = basename($query_dir_path);
-        $basename =~ s/^\d+_//;
-        my $md5 = $get_md5->($query_dir_path);
-        my @matches;
-        find(sub {
-            my $path = $File::Find::name;
-            if (-f $path) {
-                my $path_md5 = $get_md5->($path);
-                if ($md5 eq $path_md5) {
-                    push @matches, $path;
-                }
-            }
-        }, $dir);
-        if (@matches > 1) {
-            @matches = grep { /$basename/ } @matches;
-        }
-        if (@matches > 1) {
-            die "Multiple matches found";
-        }
-        return $matches[0];
-    };
-
     # Confirm basic query returns results.
 
     my $query_dir = $mount_dir.'/from:user@example.org '.
@@ -92,14 +94,14 @@ my $pid;
     my $data = read_file($cur_files[0]);
     ok($data, 'Able to read mail file from mount directory');
 
-    # Confirm that raw backing directories are not included in the
+    # Confirm that backing directories are not included in the
     # mount directory.
 
     my @files;
     find(sub { push @files, $File::Find::name },
          $mount_dir);
     ok((not grep { /\/_/ } @files),
-        'No raw backing directories in mount directory');
+        'No backing directories in mount directory');
 
     # Add another mail item, confirm that requerying picks it up.
 
@@ -118,7 +120,7 @@ my $pid;
     # Rename mail item within original directory.
 
     my $cur_file = $cur_files[0];
-    my $md_cur_file = $get_maildir_path->($cur_file);
+    my $md_cur_file = get_maildir_path($dir, $cur_file);
     my $new_cur_file = $cur_file.':2,S';
     $! = undef;
     eval { rename $cur_file, $new_cur_file };
@@ -129,7 +131,7 @@ my $pid;
         "Original file in query dir no longer exists");
     ok((-e $new_cur_file),
         "New file in query dir exists");
-    my $md_new_cur_file = $get_maildir_path->($new_cur_file);
+    my $md_new_cur_file = get_maildir_path($dir, $new_cur_file);
     ok((not -e $md_cur_file),
         "Original file in maildir no longer exists");
     ok((-e $md_new_cur_file),
@@ -158,7 +160,7 @@ my $pid;
         "Original file in query dir no longer exists");
     ok((-e $new_cur_file),
         "New file in query dir exists");
-    $md_new_cur_file = $get_maildir_path->($new_cur_file);
+    $md_new_cur_file = get_maildir_path($dir, $new_cur_file);
     ok((not -e $md_cur_file),
         "Original file in maildir no longer exists");
     ok((-e $md_new_cur_file),
@@ -211,13 +213,6 @@ my $pid;
     find(sub { push @all_files2, $File::Find::name }, $dir);
     is(@all_files, (@all_files2 + 1),
         'Delete carries through to mailbox');
-
-    # Permit rmdir on a query directory.
-
-    $res = rmdir $query_dir2;
-    ok($res, 'Able to call rmdir on query directory');
-    ok((not -e $backing_dir.'/_to:asdf4@example.net'),
-        'Backing directory removed');
 
     # Set up two query directories that overlap.  Confirm that
     # movement in one causes updates in the other.
