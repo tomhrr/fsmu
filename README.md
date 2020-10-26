@@ -26,7 +26,7 @@ Create a backing directory:
 
 Mount the filesystem:
 
-    $ fsmu --backing-dir=fsmu-bd -s fsmu
+    $ fsmu --backing-dir=fsmu-bd fsmu
 
 Create and retrieve a query directory:
 

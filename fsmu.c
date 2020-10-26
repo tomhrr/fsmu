@@ -32,7 +32,7 @@ static const struct fuse_opt option_spec[] = {
     OPTION("--backing-dir=%s", backing_dir),
     OPTION("--muhome=%s", mu_home),
     OPTION("--mu=%s", mu),
-    OPTION("--refresh-timeout", refresh_timeout),
+    OPTION("--refresh-timeout=%d", refresh_timeout),
     OPTION("--delete-remove", delete_remove),
     OPTION("--help", help),
     FUSE_OPT_END
