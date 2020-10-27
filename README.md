@@ -1,6 +1,6 @@
 ## fsmu
 
-[![Build Status](https://travis-ci.org/tomhrr/fsmu.svg?branch=master)](https://travis-ci.org/tomhrr/fsmu)
+[![Build Status](https://travis-ci.org/tomhrr/fsmu.svg?branch=main)](https://travis-ci.org/tomhrr/fsmu)
 [![stability-beta](https://img.shields.io/badge/stability-beta-33bbff.svg)](https://github.com/mkenney/software-guides/blob/master/STABILITY-BADGES.md#beta)
 
 A virtual maildir filesystem for [`mu`](https://github.com/djcb/mu)
