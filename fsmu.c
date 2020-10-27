@@ -515,6 +515,57 @@ static int update_backing_dir(const char *backing_dir,
     return 0;
 }
 
+/* Remove a temporary mail directory and its contents recursively.
+ * This will remove as many files/directories as possible before
+ * returning. */
+static int remove_dir(const char *dir_path)
+{
+    DIR *dir_handle = opendir(dir_path);
+    if (!dir_handle) {
+        syslog(LOG_ERR, "remove_dir: cannot open '%s': %s",
+               dir_handle, strerror(errno));
+        return -1;
+    }
+    struct dirent *dent;
+    struct stat stbuf;
+    while ((dent = readdir(dir_handle)) != NULL) {
+        if (is_upwards(dent->d_name)) {
+            continue;
+        }
+        char path[PATH_MAX];
+        strcpy(path, dir_path);
+        strcat(path, "/");
+        strcat(path, dent->d_name);
+        int res = lstat(path, &stbuf);
+        if (res != 0) {
+            syslog(LOG_INFO, "remove_dir: cannot lstat '%s': %s",
+                   path, strerror(errno));
+        } else if (S_ISDIR(stbuf.st_mode)) {
+            int res = remove_dir(path);
+            if (res != 0) {
+                syslog(LOG_ERR, "remove_dir: cannot remove '%s': %s",
+                       path, strerror(errno));
+            }
+        } else {
+            int res = unlink(path);
+            if (res != 0) {
+                syslog(LOG_ERR, "remove_dir: cannot unlink '%s': %s",
+                       path, strerror(errno));
+            }
+        }
+    }
+    closedir(dir_handle);
+
+    int res = rmdir(dir_path);
+    if (res != 0) {
+        syslog(LOG_ERR, "remove_dir: cannot unlink directory '%s': %s",
+               dir_path, strerror(errno));
+        return -1;
+    }
+
+    return 0;
+}
+
 /* Refresh the search results for a given mount directory.  If force
  * is false, then refresh will not happen if the timeout for the
  * corresponding backing directory has not been reached.  If force is
@@ -618,11 +669,14 @@ static int refresh_dir(const char *path, int force)
      * is the return code seen in practice. */
     if ((res != 0) && (res != 2) && (res != 1024)) {
         syslog(LOG_ERR, "refresh_dir: mu find failed");
+        remove_dir(temp_dirname);
         return -1;
     }
 
     res = make_backing_dir_if_required(backing_path);
     if (res != 0) {
+        syslog(LOG_ERR, "refresh_dir: cannot make backing directory");
+        remove_dir(temp_dirname);
         return -1;
     }
 
@@ -636,6 +690,10 @@ static int refresh_dir(const char *path, int force)
 
     res = update_backing_dir(backing_path_cur, temp_path_cur);
     if (res != 0) {
+        syslog(LOG_ERR, "refresh_dir: cannot update backing "
+                        "directory '%s' (from '%s')",
+               backing_path_cur, temp_path_cur);
+        remove_dir(temp_dirname);
         return -1;
     }
 
@@ -649,6 +707,10 @@ static int refresh_dir(const char *path, int force)
 
     res = update_backing_dir(backing_path_new, temp_path_new);
     if (res != 0) {
+        syslog(LOG_ERR, "refresh_dir: cannot update backing "
+                        "directory '%s' (from '%s')",
+               backing_path_new, temp_path_new);
+        remove_dir(temp_dirname);
         return -1;
     }
 
@@ -659,6 +721,7 @@ static int refresh_dir(const char *path, int force)
     if (res != 0) {
         syslog(LOG_ERR, "refresh_dir: cannot remove temp/new: %s",
                strerror(errno));
+        remove_dir(temp_dirname);
         return -1;
     }
     strcpy(tempdir_part, temp_dirname);
@@ -667,6 +730,7 @@ static int refresh_dir(const char *path, int force)
     if (res != 0) {
         syslog(LOG_ERR, "refresh_dir: cannot remove temp/cur: %s",
                strerror(errno));
+        remove_dir(temp_dirname);
         return -1;
     }
     strcpy(tempdir_part, temp_dirname);
@@ -675,6 +739,7 @@ static int refresh_dir(const char *path, int force)
     if (res != 0) {
         syslog(LOG_ERR, "refresh_dir: cannot remove temp/tmp: %s",
                strerror(errno));
+        remove_dir(temp_dirname);
         return -1;
     }
 
@@ -682,6 +747,7 @@ static int refresh_dir(const char *path, int force)
     if (!temp_dir_handle) {
         syslog(LOG_ERR, "refresh_dir: cannot open '%s': %s",
                temp_dirname, strerror(errno));
+        remove_dir(temp_dirname);
         return -1;
     }
     struct dirent *dent;
@@ -698,6 +764,7 @@ static int refresh_dir(const char *path, int force)
             syslog(LOG_ERR, "refresh_dir: cannot unlink '%s': %s",
                    path, strerror(errno));
             closedir(temp_dir_handle);
+            remove_dir(temp_dirname);
             return -1;
         }
     }
@@ -706,6 +773,7 @@ static int refresh_dir(const char *path, int force)
     if (res != 0) {
         syslog(LOG_ERR, "refresh_dir: cannot remove temp: %s",
                strerror(errno));
+        remove_dir(temp_dirname);
         return -1;
     }
 

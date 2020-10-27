@@ -17,7 +17,7 @@ use File::Spec::Functions qw(no_upwards);
 use File::Temp qw(tempdir);
 use List::Util qw(first);
 
-use Test::More tests => 13;
+use Test::More tests => 14;
 
 my $mount_dir;
 my $top_pid = $$;
@@ -280,11 +280,11 @@ sub debug
                 my $operation_name =
                     $operation_names[int(rand(@operation_names))];
                 if (($operation_name eq 'remove-query')
-                        and ($i % 50 != 0)) {
+                        and ($i % 100 != 0)) {
                     next;
                 }
                 if (($operation_name eq 'delete')
-                        and ($i % 100 != 0)) {
+                        and ($i % 200 != 0)) {
                     next;
                 }
                 debug("$operation_name begin");
@@ -299,12 +299,13 @@ sub debug
         waitpid($pid, 0);
     }
 
-    sleep(2);
+    sleep(5);
     ok(1, 'Operations completed');
 
     # As a proxy for confirming that the operations were all handled
     # correctly (regardless of whether they succeeded or failed),
-    # confirm that the set of reverse paths is correct.
+    # confirm that the set of reverse paths is correct and that no
+    # temporary directories exist.
     my @paths;
     find(sub {
         if ((-f $File::Find::name)
@@ -345,6 +346,14 @@ sub debug
     ok((not $not_exists), 'All reverse paths map to real files');
     my $res = ok((not keys %path_lookup),
         'All real files map to reverse paths');
+
+    my @tempdirs;
+    find(sub {
+        if ($File::Find::name =~ /tempdir\.......$/) {
+            push @tempdirs, $File::Find::name;
+        }
+    }, $backing_dir);
+    ok((not @tempdirs), 'No temporary directories found');
 }
 
 END {
