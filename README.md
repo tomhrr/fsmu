@@ -88,9 +88,8 @@ The path to the `mu` executable can be set by using the `--mu` option,
 and the `muhome` configuration option (passed to the `mu` commands)
 can be set by using the `--muhome` option.
 
-There is roughly 20kB worth of disk overhead for each mail item that's
-indexed by way of the query directories, so 1,000 mail items has an
-overhead of about 20MB.
+There is roughly 20kB worth of disk overhead for each mail item
+present in the query directories.
 
 Debug and error information is logged using syslog.
 
