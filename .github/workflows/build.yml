@@ -1,0 +1,8 @@
+name: build
+on: push
+jobs:
+  build-10:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v1
+      - run: sudo apt-get install build-essential gcc libfuse-dev libfile-slurp-perl libdigest-md5-perl libfile-temp-perl libautodie-perl libproc-processtable-perl libmime-tools-perl libsys-hostname-long-perl maildir-utils && mu --version && make && make test
