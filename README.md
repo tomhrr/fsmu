@@ -1,6 +1,6 @@
 ## fsmu
 
-[![Build Status](https://github.com/tomhrr/fsmu/workflows/build/badge.svg?branch=master)](https://github.com/tomhrr/fsmu/actions)
+[![Build Status](https://github.com/tomhrr/fsmu/workflows/build/badge.svg?branch=main)](https://github.com/tomhrr/fsmu/actions)
 [![stability-beta](https://img.shields.io/badge/stability-beta-33bbff.svg)](https://github.com/mkenney/software-guides/blob/master/STABILITY-BADGES.md#beta)
 
 A virtual maildir filesystem for [`mu`](https://github.com/djcb/mu)
