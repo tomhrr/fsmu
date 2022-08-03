@@ -867,7 +867,13 @@ static int fsmu_getattr(const char *path, struct stat *stbuf)
         const char *tail = backing_path + len - 9;
         if (strcmp(tail, "/.refresh") == 0) {
             stbuf->st_mode = S_IFREG;
-            stbuf->st_size = 0;
+            /* This previously used to report 0, but a change
+             * somewhere else (possibly in a newer version of FUSE)
+             * means that if the size is reported as 0, reading the
+             * file doesn't actually hit fsmu_read, and the refresh
+             * doesn't happen.  Changing it to have a size of 1
+             * 'fixes' this. */
+            stbuf->st_size = 1;
             return 0;
         }
     }
@@ -1262,7 +1268,14 @@ static int fsmu_read(const char *path, char *buf, size_t size,
         if (strcmp(tail, "/.refresh") == 0) {
             syslog(LOG_INFO, "getattr: forcibly refreshing path");
             refresh_dir(path, 1);
-            return 0;
+            /* This previously used to have a size of 0, but a change
+             * somewhere else (possibly in a newer version of FUSE)
+             * means that if the size is reported as 0, reading the
+             * file doesn't actually hit this function, and the
+             * refresh doesn't happen.  Changing it to have a size of
+             * 1 'fixes' this. */
+            buf[0] = '0';
+            return 1;
         }
     }
 

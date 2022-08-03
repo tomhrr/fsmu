@@ -49,7 +49,7 @@ my $pid;
     write_message($entity, $dir.'/asdf/asdf1/cur');
     system($refresh_cmd);
     my @query_files = ();
-    system("cat '$query_dir/.refresh'");
+    system("cat '$query_dir/.refresh' >/tmp/null");
     find(sub { push @query_files, $File::Find::name },
          $query_dir);
     my @cur_files = grep { /\/cur\/\d/ } @query_files;
@@ -60,7 +60,7 @@ my $pid;
     write_message($entity2, $dir.'/asdf/asdf1/cur');
     system($refresh_cmd);
     @query_files = ();
-    system("cat '$query_dir/.refresh'");
+    system("cat '$query_dir/.refresh' >/tmp/null");
     find(sub { push @query_files, $File::Find::name },
          $query_dir);
     @cur_files = grep { /\/cur\/\d/ } @query_files;

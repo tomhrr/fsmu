@@ -215,8 +215,11 @@ sub get_maildir_path
         'Delete carries through to mailbox');
 
     # Set up two query directories that overlap.  Confirm that
-    # movement in one causes updates in the other.
+    # movement in one causes updates in the other.  (It's necessary to
+    # refresh before doing this, so that mu's index takes account of
+    # the renames/deletes that have happened.)
 
+    system($refresh_cmd);
     my $query_dir4 = $mount_dir.'/from:user@example.org';
     mkdir $query_dir4;
     my $query_dir5 = $mount_dir.'/data';
